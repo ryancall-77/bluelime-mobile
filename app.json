@@ -1,23 +1,39 @@
 {
   "expo": {
-    "name": "bluelime-mobile",
+    "name": "Bluelime Deals",
     "slug": "bluelime-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "bluelimemobile",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "supportsTablet": false,
+      "bundleIdentifier": "ai.bluelime.deals",
+      "entitlements": {
+        "aps-environment": "production"
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Bluelime lets you attach a proof-of-funds screenshot to an offer.",
+        "NSCameraUsageDescription": "Bluelime lets you photograph a proof-of-funds document to attach to an offer."
+      }
     },
     "android": {
+      "package": "ai.bluelime.deals",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0B1B2B",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": []
     },
     "web": {
       "output": "static",
@@ -25,18 +41,39 @@
     },
     "plugins": [
       "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#208AEF"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Bluelime lets you attach a proof-of-funds screenshot to an offer."
+        }
+      ],
+      "expo-document-picker",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#0B1B2B",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 96
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "f69fb52f-7233-49a2-9daf-41d9a5011710"
+      },
+      "router": {}
+    },
+    "owner": "ryancall"
   }
 }
