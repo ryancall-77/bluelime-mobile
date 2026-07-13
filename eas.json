@@ -37,7 +37,6 @@
   "submit": {
     "production": {
       "ios": {
-        "ascAppId": "REPLACE_WITH_ASC_APP_ID",
         "ascApiKeyPath": "C:/Users/ryan/rz-keys/AuthKey_L4CL6XW2AH.p8",
         "ascApiKeyId": "L4CL6XW2AH",
         "ascApiKeyIssuerId": "7320cdfa-b74c-49d7-b7b8-3c1a01d15076"

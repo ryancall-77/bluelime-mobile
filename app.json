@@ -74,6 +74,9 @@
       },
       "router": {}
     },
-    "owner": "ryancall"
+    "owner": "ryancall",
+    "updates": {
+      "url": "https://u.expo.dev/f69fb52f-7233-49a2-9daf-41d9a5011710"
+    }
   }
 }
