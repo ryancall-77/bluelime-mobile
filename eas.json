@@ -9,7 +9,9 @@
       "distribution": "internal",
       "ios": { "simulator": false },
       "env": {
-        "EXPO_PUBLIC_API_BASE": "https://bluelime.ai"
+        "EXPO_PUBLIC_API_BASE": "https://bluelime.ai",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://hyfbzxibqphxavfgjojx.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_pWfT5CSzHoNAuL6j_LmJSw_K8FYN0e-"
       }
     },
     "preview": {
@@ -17,14 +19,18 @@
       "channel": "preview",
       "ios": { "simulator": false },
       "env": {
-        "EXPO_PUBLIC_API_BASE": "https://bluelime.ai"
+        "EXPO_PUBLIC_API_BASE": "https://bluelime.ai",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://hyfbzxibqphxavfgjojx.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_pWfT5CSzHoNAuL6j_LmJSw_K8FYN0e-"
       }
     },
     "production": {
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_BASE": "https://bluelime.ai"
+        "EXPO_PUBLIC_API_BASE": "https://bluelime.ai",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://hyfbzxibqphxavfgjojx.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_pWfT5CSzHoNAuL6j_LmJSw_K8FYN0e-"
       }
     }
   },
