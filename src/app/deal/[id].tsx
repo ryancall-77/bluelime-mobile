@@ -1,17 +1,21 @@
 import React, { useCallback, useState } from 'react';
 import {
-  Alert, Dimensions, Pressable, ScrollView, StyleSheet, Text, View,
+  Alert, Dimensions, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
-import { Button, Card, Loading, VerifiedBadge, EmptyState } from '@/components/ui';
+import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { Button, Card, Loading, EmptyState } from '@/components/ui';
 import { getDeal, saveListing, reportContent } from '@/lib/api';
-import type { DealDetailResponse } from '@/lib/types';
+import type { DealDetailResponse, MoneyLine } from '@/lib/types';
 import { colors, font, radius, space } from '@/lib/theme';
 import { fmtUsd, fmtBedBath, fmtCityState, fmtDate } from '@/lib/format';
 
 const { width } = Dimensions.get('window');
+
+// Mirrors the web deal page (bluelime.ai/deals/p/[id]) as seen on mobile: verified
+// hero + metrics, photo gallery, the Flip and Rent number boxes, a trust strip, the
+// seller marketing sections, a call/text contact line, and the full verified report
+// (condition + rehab + comps). Same data source (/api/marketplace/deal/[id]).
 
 export default function DealDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -44,7 +48,7 @@ export default function DealDetail() {
       const res = await saveListing(id, next);
       setSaved(res.saved);
     } catch {
-      setSaved(!next); // revert
+      setSaved(!next);
     } finally {
       setSavingBusy(false);
     }
@@ -78,8 +82,28 @@ export default function DealDetail() {
   if (!data) return <Loading label="Loading deal…" />;
 
   const { deal, report: rpt } = data;
+  const m = deal.marketing ?? {};
   const photos = deal.photos?.length ? deal.photos : (deal.photo ? [deal.photo] : []);
+
+  const hasVerified = deal.arv_cents != null;
+  const hasPrice = deal.ask_cents != null && deal.ask_cents > 0;
+  const hasProfit = deal.profit_cents != null;
   const profitPositive = (deal.profit_cents ?? 0) > 0;
+  const accepting = deal.accepting_offers ?? deal.listing_state === 'active';
+  const statusLabel = deal.listing_state === 'active' ? 'Available'
+    : deal.listing_state === 'pending' ? 'Pending'
+    : deal.listing_state === 'sold' ? 'Sold'
+    : accepting ? 'Available' : 'No longer available';
+  const verifiedDate = deal.verified_at ? fmtDate(deal.verified_at) : null;
+
+  const headline = m.headline && m.headline !== deal.address ? m.headline : null;
+  const phone = (m.contact?.text_line || m.contact?.phone || '').trim();
+  const phoneDigits = phone.replace(/[^0-9+]/g, '');
+
+  const specs = [
+    fmtBedBath(deal.beds, deal.baths, deal.sqft),
+    deal.year_built ? `built ${deal.year_built}` : null,
+  ].filter(Boolean).join('  ·  ');
 
   return (
     <>
@@ -94,7 +118,7 @@ export default function DealDetail() {
         }}
       />
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        {/* Gallery */}
+        {/* Photo gallery */}
         {photos.length > 0 ? (
           <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.gallery}>
             {photos.map((p, i) => (
@@ -102,101 +126,199 @@ export default function DealDetail() {
             ))}
           </ScrollView>
         ) : (
-          <View style={[styles.galleryImg, styles.galleryPlaceholder]}>
-            <Text style={styles.dim}>No photos</Text>
+          <View style={[styles.galleryImg, styles.center]}>
+            <Text style={styles.faint}>No photos</Text>
           </View>
         )}
 
         <View style={styles.pad}>
-          <VerifiedBadge />
-          <Text style={styles.address}>{deal.address}</Text>
+          {/* Headline + status chips */}
+          {headline ? <Text style={styles.headline}>{headline}</Text> : null}
+          <View style={styles.chipRow}>
+            <View style={[styles.chip, accepting ? styles.chipActive : styles.chipMuted]}>
+              <Text style={[styles.chipText, { color: accepting ? colors.bg : colors.textDim }]}>{statusLabel}</Text>
+            </View>
+            {hasVerified && (
+              <View style={styles.chipVerified}>
+                <Text style={styles.chipVerifiedText}>✓ Verified{verifiedDate ? ` · ${verifiedDate}` : ''}</Text>
+              </View>
+            )}
+            {deal.contract_verified && (
+              <View style={styles.chipContract}>
+                <Text style={styles.chipContractText}>✓ Contract on file</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Address */}
+          <Text style={styles.address}>{deal.address.split(',')[0]}</Text>
           <Text style={styles.location}>{fmtCityState(deal.city, deal.state)}{deal.zip ? ` ${deal.zip}` : ''}</Text>
-          <Text style={styles.specs}>{fmtBedBath(deal.beds, deal.baths, deal.sqft)}{deal.year_built ? ` · Built ${deal.year_built}` : ''}</Text>
+          {specs ? <Text style={styles.specs}>{specs}  ·  <Text style={{ color: colors.blue }}>⚡ verified by Bluelime</Text></Text> : null}
 
-          {/* Headline numbers */}
-          <View style={styles.headline}>
-            <BigMetric label="Asking" value={fmtUsd(deal.ask_cents)} />
-            <BigMetric label="ARV" value={fmtUsd(deal.arv_cents)} />
+          {/* Metrics row (Profit / ARV / Rehab / Price) */}
+          <View style={styles.metrics}>
+            {hasProfit && <Metric label="Profit" value={fmtUsd(deal.profit_cents)} color={profitPositive ? colors.lime : colors.danger} />}
+            {hasVerified && <Metric label="ARV" value={fmtUsd(deal.arv_cents)} color={colors.text} />}
+            {hasVerified && <Metric label="Rehab" value={fmtUsd(deal.rehab_cents)} color={colors.warn} />}
+            {hasPrice && <Metric label="Price" value={fmtUsd(deal.ask_cents)} color={colors.blue} />}
           </View>
-          <View style={styles.headline}>
-            <BigMetric label="Rehab est." value={fmtUsd(deal.rehab_cents)} />
-            <BigMetric
-              label="Gross profit"
-              value={fmtUsd(deal.profit_cents)}
-              highlight={profitPositive ? colors.lime : colors.danger}
+
+          {/* Flip box */}
+          {hasProfit && (
+            <NumberBox
+              leftLabel="Offered price" leftValue={fmtUsd(deal.ask_cents)} leftColor={colors.blue}
+              rightLabel="Flip estimated profit" rightValue={fmtUsd(deal.profit_cents)} rightColor={profitPositive ? colors.lime : colors.warn}
+              rows={[
+                { label: 'After-repair value (ARV)', value: fmtUsd(deal.arv_cents) },
+                { label: 'Estimated rehab', value: `−${fmtUsd(deal.rehab_cents)}` },
+                { label: 'Offered price', value: `−${fmtUsd(deal.ask_cents)}` },
+                { label: 'Closing, selling & holding (est.)', value: `−${fmtUsd(deal.costs_cents)}`, detail: deal.cost_lines },
+              ]}
+              totalLabel="Flip estimated profit"
+              totalValue={fmtUsd(deal.profit_cents)}
+              totalColor={profitPositive ? colors.lime : colors.warn}
+              note="Renovate to ARV and resell. Assumes a cash purchase (no loan). Estimate only — verify before purchase."
             />
-          </View>
+          )}
 
-          {/* Full P&L */}
-          {deal.pnl_lines && deal.pnl_lines.length > 0 && (
-            <Card style={{ marginTop: space.lg }}>
-              <Text style={styles.cardTitle}>Full profit & loss <Text style={styles.est}>· estimates</Text></Text>
-              {deal.pnl_lines.map((l, i) => (
-                <View key={i} style={styles.pnlRow}>
-                  <Text style={styles.pnlLabel}>{l.label}</Text>
-                  <Text style={[styles.pnlValue, { color: l.kind === 'cost' ? colors.textDim : colors.text }]}>
-                    {fmtUsd(l.cents)}
-                  </Text>
+          {/* Rent box */}
+          {deal.rent ? (
+            <NumberBox
+              leftLabel="Monthly rent" leftValue={fmtUsd(deal.rent.rent_cents)} leftColor={colors.blue}
+              rightLabel="Net cash flow / mo" rightValue={fmtUsd(deal.rent.net_monthly_cents)}
+              rightColor={deal.rent.net_monthly_cents >= 0 ? colors.lime : colors.warn}
+              rows={[
+                { label: 'Gross monthly rent', value: fmtUsd(deal.rent.rent_cents) },
+                { label: 'Operating costs (est.)', value: `−${fmtUsd(deal.rent.op_costs_cents)}`, detail: deal.rent.op_cost_lines },
+                { label: 'Debt service (mortgage)', value: `−${fmtUsd(deal.rent.debt_service_cents)}`, detail: deal.rent.debt_lines },
+              ]}
+              totalLabel="Net monthly cash flow"
+              totalValue={fmtUsd(deal.rent.net_monthly_cents)}
+              totalColor={deal.rent.net_monthly_cents >= 0 ? colors.lime : colors.warn}
+              footRow={`Cap rate ${deal.rent.cap_rate_pct.toFixed(1)}%    ·    Cash-on-cash ${deal.rent.cash_on_cash_pct.toFixed(1)}%`}
+              note="Buy & hold, financed at 25% down, 7.25% 30-yr fixed. Vacancy 6% · mgmt 8% · maintenance 8% + taxes & insurance. Estimate only."
+            />
+          ) : hasVerified ? (
+            <Card style={{ marginTop: space.md }}>
+              <Text style={styles.metricLabel}>AS A RENTAL</Text>
+              <Text style={[styles.faint, { marginTop: space.xs }]}>A long-term rent estimate isn&apos;t available for this address yet.</Text>
+            </Card>
+          ) : null}
+
+          {/* Trust strip */}
+          {hasVerified && (
+            <View style={styles.trust}>
+              <TrustCard title="✓ Verified numbers" body="ARV and rehab computed by our engine from like-for-like comps — not the seller's claim." accent={colors.lime} />
+              <TrustCard
+                title={deal.contract_verified ? '✓ Contract on file' : 'One assignment, no chains'}
+                body={deal.contract_verified
+                  ? 'The seller holds an executed contract on this property — verified, not a daisy chain.'
+                  : 'Sellers list their own controlled deals here — no re-shopped contracts.'}
+                accent={deal.contract_verified ? colors.lime : colors.textDim}
+              />
+              <TrustCard title="Everything on one page" body="The profit you see is after the ask — the spread's already in the math. No hidden fees." accent={colors.lime} />
+            </View>
+          )}
+
+          {/* Marketing sections */}
+          {m.description ? (
+            <Section title="About this deal"><MarketingText text={m.description} /></Section>
+          ) : null}
+          {m.offer_terms ? (
+            <Section title="Required offer terms">
+              {m.offer_terms.split(/\r?\n/).map((t) => t.replace(/^[•\-*]\s+/, '').trim()).filter(Boolean).map((t, i) => (
+                <View key={i} style={styles.bulletRow}>
+                  <Text style={styles.bullet}>•</Text>
+                  <Text style={styles.para}>{t}</Text>
                 </View>
               ))}
-              {deal.net_profit_cents != null && (
-                <View style={[styles.pnlRow, styles.pnlNet]}>
-                  <Text style={styles.pnlNetLabel}>Net profit (est.)</Text>
-                  <Text style={[styles.pnlNetLabel, { color: (deal.net_profit_cents ?? 0) > 0 ? colors.lime : colors.danger }]}>
-                    {fmtUsd(deal.net_profit_cents)}
-                  </Text>
-                </View>
-              )}
+            </Section>
+          ) : null}
+          {m.offer_process ? (
+            <Section title="Offer process & agent commission"><MarketingText text={m.offer_process} /></Section>
+          ) : null}
+
+          {/* Contact — one number for call + text */}
+          {phone ? (
+            <Card style={{ marginTop: space.md }}>
+              <Text style={styles.value}>Prefer to talk?</Text>
+              <Text style={[styles.para, { marginTop: space.xs }]}>
+                <Text style={styles.link} onPress={() => Linking.openURL(`tel:${phoneDigits}`)}>Call</Text>
+                <Text style={styles.faint}> or </Text>
+                <Text style={styles.link} onPress={() => Linking.openURL(`sms:${phoneDigits}`)}>text</Text>
+                <Text style={styles.textDim}> {phone}</Text>
+              </Text>
             </Card>
+          ) : null}
+
+          {/* ── The full report ── */}
+          {(rpt.condition || rpt.condition_score != null || rpt.rehab_items.length > 0 || rpt.comps.length > 0) && (
+            <View style={styles.reportHeader}>
+              <Text style={styles.reportTitle}>The full report</Text>
+              <View style={styles.chipVerified}><Text style={styles.chipVerifiedText}>Verified by Bluelime</Text></View>
+            </View>
           )}
 
           {/* Condition */}
           {(rpt.condition || rpt.condition_score != null) && (
-            <Card style={{ marginTop: space.lg }}>
-              <Text style={styles.cardTitle}>Condition</Text>
-              {rpt.condition_score != null && <Text style={styles.value}>Score: {rpt.condition_score}/100</Text>}
-              {rpt.condition ? <Text style={styles.body}>{rpt.condition}</Text> : null}
+            <Card style={{ marginTop: space.md }}>
+              <View style={styles.rowBetween}>
+                <Text style={styles.cardTitle}>Property condition</Text>
+                {rpt.condition_score != null && (
+                  <Text style={styles.faint}>condition score <Text style={styles.value}>{rpt.condition_score}/100</Text></Text>
+                )}
+              </View>
+              {rpt.condition ? <Text style={[styles.body, { marginTop: space.xs }]}>{rpt.condition}</Text> : null}
             </Card>
           )}
 
-          {/* Rehab breakdown */}
+          {/* Rehab estimate */}
           {rpt.rehab_items.length > 0 && (
-            <Card style={{ marginTop: space.lg }}>
-              <Text style={styles.cardTitle}>Rehab breakdown</Text>
-              {rpt.rehab_items.map((r, i) => (
-                <View key={i} style={styles.rehabRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.value}>{r.label}</Text>
-                    {r.reasoning ? <Text style={styles.dim}>{r.reasoning}</Text> : null}
+            <Card style={{ marginTop: space.md }}>
+              <View style={styles.rowBetween}>
+                <Text style={styles.cardTitle}>Rehab estimate</Text>
+                <Text style={styles.faint}>total <Text style={styles.value}>{fmtUsd(rpt.rehab_total_cents)}</Text></Text>
+              </View>
+              <View style={{ marginTop: space.sm }}>
+                {rpt.rehab_items.map((r, i) => (
+                  <View key={i} style={[styles.rehabRow, i === 0 && { borderTopWidth: 0 }]}>
+                    <View style={{ flex: 1, paddingRight: space.md }}>
+                      <Text style={styles.value}>{r.label}</Text>
+                      {r.reasoning ? <Text style={styles.faint} numberOfLines={3}>{r.reasoning}</Text> : null}
+                    </View>
+                    <Text style={styles.mono}>{fmtUsd(r.cost_cents)}</Text>
                   </View>
-                  <Text style={styles.value}>{fmtUsd(r.cost_cents)}</Text>
-                </View>
-              ))}
+                ))}
+              </View>
+              <Text style={[styles.faint, { marginTop: space.sm }]}>Condition-scored from the property photos — not a seller guess.</Text>
             </Card>
           )}
 
           {/* Comps */}
           {rpt.comps.length > 0 && (
             <View style={{ marginTop: space.lg }}>
-              <Text style={styles.cardTitle}>Verified comps ({rpt.comps.length})</Text>
+              <View style={styles.rowBetween}>
+                <Text style={styles.cardTitle}>Comparable sales <Text style={styles.faint}>({rpt.comps.length})</Text></Text>
+                {hasVerified && <Text style={styles.faint}>supports the ARV</Text>}
+              </View>
               {rpt.comps.map((c) => (
                 <Card key={c.id} style={styles.comp}>
                   {c.photo ? (
                     <Image source={{ uri: c.photo }} style={styles.compImg} contentFit="cover" />
                   ) : (
-                    <View style={[styles.compImg, styles.galleryPlaceholder]} />
+                    <View style={[styles.compImg, styles.center]}><Text style={styles.faint}>No photo</Text></View>
                   )}
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.value} numberOfLines={1}>{c.address}</Text>
-                    <Text style={styles.dim}>{fmtBedBath(c.beds, c.baths, c.sqft)}</Text>
-                    <Text style={styles.dim}>
-                      {c.sale_price_cents ? fmtUsd(c.sale_price_cents) : '—'}
-                      {c.sale_date ? ` · ${fmtDate(c.sale_date)}` : ''}
-                      {c.distance_miles != null ? ` · ${c.distance_miles.toFixed(1)} mi` : ''}
+                    <View style={styles.rowBetween}>
+                      <Text style={[styles.value, { flex: 1 }]} numberOfLines={1}>{c.address.split(',')[0]}</Text>
+                      {c.sale_price_cents != null && <Text style={styles.compPrice}>{fmtUsd(c.sale_price_cents)}</Text>}
+                    </View>
+                    <Text style={styles.faint}>{fmtBedBath(c.beds, c.baths, c.sqft)}</Text>
+                    <Text style={styles.faint}>
+                      {c.distance_miles != null ? `${c.distance_miles.toFixed(1)} mi away` : ''}
+                      {c.sale_date ? `${c.distance_miles != null ? ' · ' : ''}sold ${fmtDate(c.sale_date)}` : ''}
                     </Text>
-                    {c.similarity_pct != null && (
-                      <Text style={[styles.dim, { color: colors.blue }]}>{c.similarity_pct}% match</Text>
-                    )}
+                    {c.similarity_pct != null && <Text style={[styles.faint, { color: colors.lime }]}>{c.similarity_pct}% match</Text>}
                   </View>
                 </Card>
               ))}
@@ -204,61 +326,216 @@ export default function DealDetail() {
           )}
 
           <Pressable onPress={report} style={styles.reportBtn} hitSlop={8}>
-            <Text style={styles.reportText}>⚑ Report this listing</Text>
+            <Text style={styles.faint}>⚑ Report this listing</Text>
           </Pressable>
         </View>
       </ScrollView>
 
       {/* Sticky action bar */}
-      <View style={styles.actionBar}>
-        <Button title="Message seller" variant="outline" onPress={() => router.push(`/messages/${id}`)} style={{ flex: 1 }} />
-        <Button title="Make offer" variant="accent" onPress={() => router.push(`/offer/${id}`)} style={{ flex: 1 }} />
-      </View>
+      {accepting && (
+        <View style={styles.actionBar}>
+          <Button title="Message seller" variant="outline" onPress={() => router.push(`/messages/${id}`)} style={{ flex: 1 }} />
+          <Button title="Make offer" variant="accent" onPress={() => router.push(`/offer/${id}`)} style={{ flex: 1 }} />
+        </View>
+      )}
     </>
   );
 }
 
-function BigMetric({ label, value, highlight }: { label: string; value: string; highlight?: string }) {
+// ── Subcomponents ──────────────────────────────────────────────────────────
+
+function Metric({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <View style={styles.bigMetric}>
-      <Text style={styles.bigLabel}>{label}</Text>
-      <Text style={[styles.bigValue, highlight ? { color: highlight } : null]}>{value}</Text>
+    <View style={styles.metric}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={[styles.metricValue, { color }]}>{value}</Text>
+    </View>
+  );
+}
+
+type BoxRow = { label: string; value: string; detail?: MoneyLine[] };
+
+function NumberBox({
+  leftLabel, leftValue, leftColor, rightLabel, rightValue, rightColor,
+  rows, totalLabel, totalValue, totalColor, footRow, note,
+}: {
+  leftLabel: string; leftValue: string; leftColor: string;
+  rightLabel: string; rightValue: string; rightColor: string;
+  rows: BoxRow[];
+  totalLabel: string; totalValue: string; totalColor: string;
+  footRow?: string; note: string;
+}) {
+  return (
+    <View style={styles.box}>
+      <View style={styles.boxHeader}>
+        <View style={{ flexShrink: 1 }}>
+          <Text style={styles.boxHeadLabel}>{leftLabel}</Text>
+          <Text style={[styles.boxHeadValue, { color: leftColor }]}>{leftValue}</Text>
+        </View>
+        <View style={{ flexShrink: 1, alignItems: 'flex-end' }}>
+          <Text style={styles.boxHeadLabel}>{rightLabel}</Text>
+          <Text style={[styles.boxHeadValue, { color: rightColor }]}>{rightValue}</Text>
+        </View>
+      </View>
+      <View style={styles.boxBody}>
+        {rows.map((r, i) => (
+          <View key={i}>
+            <View style={styles.boxRow}>
+              <Text style={styles.boxRowLabel}>{r.label}</Text>
+              <Text style={styles.boxRowValue}>{r.value}</Text>
+            </View>
+            {r.detail?.length ? (
+              <View style={styles.boxDetail}>
+                {r.detail.map((d, j) => (
+                  <View key={j} style={styles.boxDetailRow}>
+                    <Text style={styles.boxDetailLabel}>{d.label}</Text>
+                    <Text style={styles.boxDetailValue}>{d.text ?? fmtUsd(d.cents)}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ))}
+      </View>
+      <View style={styles.boxTotal}>
+        <Text style={styles.boxTotalLabel}>{totalLabel}</Text>
+        <Text style={[styles.boxTotalValue, { color: totalColor }]}>{totalValue}</Text>
+      </View>
+      {footRow ? <Text style={styles.boxFoot}>{footRow}</Text> : null}
+      <Text style={styles.boxNote}>{note}</Text>
+    </View>
+  );
+}
+
+function TrustCard({ title, body, accent }: { title: string; body: string; accent: string }) {
+  return (
+    <View style={styles.trustCard}>
+      <Text style={[styles.trustTitle, { color: accent }]}>{title}</Text>
+      <Text style={styles.trustBody}>{body}</Text>
+    </View>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Card style={{ marginTop: space.md }}>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <View style={{ marginTop: space.xs }}>{children}</View>
+    </Card>
+  );
+}
+
+// Free-text: blank lines → paragraphs; lines starting •/-/* → bullets.
+function MarketingText({ text }: { text: string }) {
+  const lines = text.split(/\r?\n/);
+  return (
+    <View>
+      {lines.map((raw, i) => {
+        const line = raw.trim();
+        if (!line) return null;
+        if (/^[•\-*]\s+/.test(line)) {
+          return (
+            <View key={i} style={styles.bulletRow}>
+              <Text style={styles.bullet}>•</Text>
+              <Text style={styles.para}>{line.replace(/^[•\-*]\s+/, '')}</Text>
+            </View>
+          );
+        }
+        return <Text key={i} style={[styles.para, { marginTop: space.xs }]}>{line}</Text>;
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingBottom: 100 },
+  content: { paddingBottom: 110 },
   pad: { padding: space.lg },
+  center: { alignItems: 'center', justifyContent: 'center' },
   gallery: { height: 240 },
   galleryImg: { width, height: 240, backgroundColor: colors.surfaceAlt },
-  galleryPlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  address: { color: colors.text, fontSize: font.h2, fontWeight: '800', marginTop: space.md },
+
+  headline: { color: colors.lime, fontSize: font.body, fontWeight: '700', marginBottom: space.sm },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.sm },
+  chip: { borderRadius: radius.sm, paddingHorizontal: space.sm, paddingVertical: 4 },
+  chipActive: { backgroundColor: colors.lime },
+  chipMuted: { backgroundColor: colors.surfaceAlt },
+  chipText: { fontSize: font.tiny, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  chipVerified: {
+    borderWidth: 1, borderColor: 'rgba(125,226,75,0.3)', backgroundColor: 'rgba(125,226,75,0.12)',
+    borderRadius: radius.sm, paddingHorizontal: space.sm, paddingVertical: 4,
+  },
+  chipVerifiedText: { color: colors.lime, fontSize: font.tiny, fontWeight: '700' },
+  chipContract: {
+    borderWidth: 1, borderColor: 'rgba(125,226,75,0.3)', backgroundColor: 'rgba(125,226,75,0.12)',
+    borderRadius: radius.sm, paddingHorizontal: space.sm, paddingVertical: 4,
+  },
+  chipContractText: { color: colors.lime, fontSize: font.tiny, fontWeight: '700' },
+
+  address: { color: colors.text, fontSize: font.h2, fontWeight: '800' },
   location: { color: colors.textDim, fontSize: font.body, marginTop: 2 },
   specs: { color: colors.textFaint, fontSize: font.small, marginTop: space.xs },
-  headline: { flexDirection: 'row', gap: space.md, marginTop: space.md },
-  bigMetric: {
-    flex: 1, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
-    padding: space.md,
+
+  metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md, marginTop: space.lg },
+  metric: { minWidth: 70 },
+  metricLabel: { color: colors.textFaint, fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  metricValue: { fontSize: font.h3, fontWeight: '800', marginTop: 3 },
+
+  box: {
+    backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
+    padding: space.lg, marginTop: space.md,
   },
-  bigLabel: { color: colors.textFaint, fontSize: font.tiny, textTransform: 'uppercase', letterSpacing: 0.5 },
-  bigValue: { color: colors.text, fontSize: font.h3, fontWeight: '800', marginTop: 4 },
-  cardTitle: { color: colors.text, fontSize: font.h3, fontWeight: '700', marginBottom: space.sm },
-  est: { color: colors.textFaint, fontSize: font.small, fontWeight: '400' },
+  boxHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
+  boxHeadLabel: { color: colors.textFaint, fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  boxHeadValue: { fontSize: font.h1, fontWeight: '800', marginTop: 2 },
+  boxBody: { marginTop: space.md, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: space.md, gap: 6 },
+  boxRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
+  boxRowLabel: { color: colors.textDim, fontSize: font.small, flex: 1 },
+  boxRowValue: { color: colors.text, fontSize: font.small, fontWeight: '700' },
+  boxDetail: {
+    marginTop: 4, marginLeft: space.md, paddingLeft: space.md, borderLeftWidth: 2, borderLeftColor: colors.border, gap: 2,
+  },
+  boxDetailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
+  boxDetailLabel: { color: colors.textFaint, fontSize: font.tiny, flex: 1 },
+  boxDetailValue: { color: colors.textDim, fontSize: font.tiny },
+  boxTotal: {
+    flexDirection: 'row', justifyContent: 'space-between', gap: space.md,
+    marginTop: space.sm, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: space.sm,
+  },
+  boxTotalLabel: { color: colors.text, fontSize: font.body, fontWeight: '800' },
+  boxTotalValue: { fontSize: font.body, fontWeight: '800' },
+  boxFoot: { color: colors.textDim, fontSize: font.small, marginTop: space.sm },
+  boxNote: { color: colors.textFaint, fontSize: font.tiny, marginTop: space.sm, lineHeight: 15 },
+
+  trust: { marginTop: space.lg, gap: space.sm },
+  trustCard: { backgroundColor: 'rgba(18,40,61,0.6)', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: space.md },
+  trustTitle: { fontSize: font.small, fontWeight: '700' },
+  trustBody: { color: colors.textDim, fontSize: font.small, marginTop: 3, lineHeight: 18 },
+
+  cardTitle: { color: colors.text, fontSize: font.h3, fontWeight: '700' },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.md },
   value: { color: colors.text, fontSize: font.body, fontWeight: '600' },
-  body: { color: colors.textDim, fontSize: font.small, marginTop: space.xs, lineHeight: 20 },
-  dim: { color: colors.textFaint, fontSize: font.small, marginTop: 2 },
-  pnlRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, gap: space.md },
-  pnlLabel: { color: colors.textDim, fontSize: font.small, flex: 1 },
-  pnlValue: { fontSize: font.small, fontWeight: '600' },
-  pnlNet: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: space.xs, paddingTop: space.md },
-  pnlNetLabel: { color: colors.text, fontSize: font.body, fontWeight: '800' },
-  rehabRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  textDim: { color: colors.textDim },
+  body: { color: colors.textDim, fontSize: font.small, lineHeight: 20 },
+  faint: { color: colors.textFaint, fontSize: font.small },
+  mono: { color: colors.text, fontSize: font.small, fontWeight: '700' },
+  para: { color: colors.textDim, fontSize: font.small, lineHeight: 20, flex: 1 },
+  link: { color: colors.lime, fontSize: font.small, fontWeight: '700' },
+  bulletRow: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
+  bullet: { color: colors.textFaint, fontSize: font.small, lineHeight: 20 },
+
+  reportHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.xl },
+  reportTitle: { color: colors.text, fontSize: font.h2, fontWeight: '800' },
+
+  rehabRow: {
+    flexDirection: 'row', justifyContent: 'space-between', gap: space.md, paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
+  },
   comp: { flexDirection: 'row', gap: space.md, marginTop: space.sm, alignItems: 'center' },
-  compImg: { width: 72, height: 72, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt },
+  compImg: { width: 84, height: 84, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt },
+  compPrice: { color: colors.lime, fontSize: font.small, fontWeight: '800' },
+
   reportBtn: { marginTop: space.xl, alignSelf: 'center', padding: space.md },
-  reportText: { color: colors.textFaint, fontSize: font.small },
   actionBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: space.md,
     padding: space.lg, paddingBottom: space.xl, backgroundColor: colors.surface,
