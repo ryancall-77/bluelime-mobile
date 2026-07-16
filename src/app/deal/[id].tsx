@@ -105,6 +105,13 @@ export default function DealDetail() {
     deal.year_built ? `built ${deal.year_built}` : null,
   ].filter(Boolean).join('  ·  ');
 
+  const metrics = ([
+    hasProfit && { label: 'Profit', value: fmtUsd(deal.profit_cents), color: profitPositive ? colors.lime : colors.danger },
+    hasVerified && { label: 'ARV', value: fmtUsd(deal.arv_cents), color: colors.text },
+    hasVerified && { label: 'Rehab', value: fmtUsd(deal.rehab_cents), color: colors.warn },
+    hasPrice && { label: 'Price', value: fmtUsd(deal.ask_cents), color: colors.blue },
+  ].filter(Boolean)) as { label: string; value: string; color: string }[];
+
   return (
     <>
       <Stack.Screen
@@ -117,6 +124,37 @@ export default function DealDetail() {
           ),
         }}
       />
+
+      {/* Persistent header — stays fixed while the page scrolls (web sticky-bar parity) */}
+      <View style={styles.stickyBar}>
+        <View style={styles.stickyTop}>
+          {photos[0] ? (
+            <Image source={{ uri: photos[0] }} style={styles.stickyThumb} contentFit="cover" />
+          ) : (
+            <View style={[styles.stickyThumb, styles.center]} />
+          )}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.stickyStreet} numberOfLines={1}>{deal.address.split(',')[0]}</Text>
+            <Text style={styles.stickyCity} numberOfLines={1}>
+              {fmtCityState(deal.city, deal.state)}{deal.zip ? ` ${deal.zip}` : ''}
+            </Text>
+          </View>
+          <View style={[styles.chip, accepting ? styles.chipActive : styles.chipMuted]}>
+            <Text style={[styles.chipText, { color: accepting ? colors.bg : colors.textDim }]}>{statusLabel}</Text>
+          </View>
+        </View>
+        {metrics.length > 0 && (
+          <View style={styles.stickyMetrics}>
+            {metrics.map((m) => (
+              <View key={m.label} style={styles.stickyMetric}>
+                <Text style={styles.stickyMetricLabel}>{m.label}</Text>
+                <Text style={[styles.stickyMetricValue, { color: m.color }]}>{m.value}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         {/* Photo gallery */}
         {photos.length > 0 ? (
@@ -154,14 +192,6 @@ export default function DealDetail() {
           <Text style={styles.address}>{deal.address.split(',')[0]}</Text>
           <Text style={styles.location}>{fmtCityState(deal.city, deal.state)}{deal.zip ? ` ${deal.zip}` : ''}</Text>
           {specs ? <Text style={styles.specs}>{specs}  ·  <Text style={{ color: colors.blue }}>⚡ verified by Bluelime</Text></Text> : null}
-
-          {/* Metrics row (Profit / ARV / Rehab / Price) */}
-          <View style={styles.metrics}>
-            {hasProfit && <Metric label="Profit" value={fmtUsd(deal.profit_cents)} color={profitPositive ? colors.lime : colors.danger} />}
-            {hasVerified && <Metric label="ARV" value={fmtUsd(deal.arv_cents)} color={colors.text} />}
-            {hasVerified && <Metric label="Rehab" value={fmtUsd(deal.rehab_cents)} color={colors.warn} />}
-            {hasPrice && <Metric label="Price" value={fmtUsd(deal.ask_cents)} color={colors.blue} />}
-          </View>
 
           {/* Flip box */}
           {hasProfit && (
@@ -301,27 +331,43 @@ export default function DealDetail() {
                 <Text style={styles.cardTitle}>Comparable sales <Text style={styles.faint}>({rpt.comps.length})</Text></Text>
                 {hasVerified && <Text style={styles.faint}>supports the ARV</Text>}
               </View>
-              {rpt.comps.map((c) => (
-                <Card key={c.id} style={styles.comp}>
-                  {c.photo ? (
-                    <Image source={{ uri: c.photo }} style={styles.compImg} contentFit="cover" />
-                  ) : (
-                    <View style={[styles.compImg, styles.center]}><Text style={styles.faint}>No photo</Text></View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.rowBetween}>
-                      <Text style={[styles.value, { flex: 1 }]} numberOfLines={1}>{c.address.split(',')[0]}</Text>
-                      {c.sale_price_cents != null && <Text style={styles.compPrice}>{fmtUsd(c.sale_price_cents)}</Text>}
+              {rpt.comps.map((c) => {
+                const cityLine = c.address.split(',').slice(1).join(',').trim();
+                const ppsf = c.sale_price_cents != null && c.sqft ? Math.round(c.sale_price_cents / c.sqft) : null;
+                const line3 = [
+                  c.distance_miles != null ? `${c.distance_miles.toFixed(1)} mi away` : null,
+                  c.sale_date ? `sold ${fmtDate(c.sale_date)}` : null,
+                  c.property_type || null,
+                ].filter(Boolean).join('  ·  ');
+                return (
+                  <Card key={c.id} style={styles.comp}>
+                    {c.photo ? (
+                      <Image source={{ uri: c.photo }} style={styles.compImg} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.compImg, styles.center]}><Text style={styles.faint}>No photo</Text></View>
+                    )}
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={styles.rowBetween}>
+                        <Text style={[styles.value, { flex: 1 }]} numberOfLines={1}>{c.address.split(',')[0]}</Text>
+                        {c.sale_price_cents != null && <Text style={styles.compPrice}>{fmtUsd(c.sale_price_cents)}</Text>}
+                      </View>
+                      {cityLine ? <Text style={styles.faint} numberOfLines={1}>{cityLine}</Text> : null}
+                      <Text style={styles.faint}>
+                        {fmtBedBath(c.beds, c.baths, c.sqft)}{ppsf != null ? `  ·  ${fmtUsd(ppsf)}/sqft` : ''}
+                      </Text>
+                      {line3 ? <Text style={styles.faint}>{line3}</Text> : null}
+                      <View style={styles.compTags}>
+                        {c.similarity_pct != null && (
+                          <Text style={[styles.compTag, { color: colors.lime, borderColor: 'rgba(125,226,75,0.4)' }]}>{c.similarity_pct}% match</Text>
+                        )}
+                        {c.condition_score != null && (
+                          <Text style={styles.compTag}>condition {c.condition_score}/5</Text>
+                        )}
+                      </View>
                     </View>
-                    <Text style={styles.faint}>{fmtBedBath(c.beds, c.baths, c.sqft)}</Text>
-                    <Text style={styles.faint}>
-                      {c.distance_miles != null ? `${c.distance_miles.toFixed(1)} mi away` : ''}
-                      {c.sale_date ? `${c.distance_miles != null ? ' · ' : ''}sold ${fmtDate(c.sale_date)}` : ''}
-                    </Text>
-                    {c.similarity_pct != null && <Text style={[styles.faint, { color: colors.lime }]}>{c.similarity_pct}% match</Text>}
-                  </View>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </View>
           )}
 
@@ -343,15 +389,6 @@ export default function DealDetail() {
 }
 
 // ── Subcomponents ──────────────────────────────────────────────────────────
-
-function Metric({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <View style={styles.metric}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={[styles.metricValue, { color }]}>{value}</Text>
-    </View>
-  );
-}
 
 type BoxRow = { label: string; value: string; detail?: MoneyLine[] };
 
@@ -475,11 +512,21 @@ const styles = StyleSheet.create({
   address: { color: colors.text, fontSize: font.h2, fontWeight: '800' },
   location: { color: colors.textDim, fontSize: font.body, marginTop: 2 },
   specs: { color: colors.textFaint, fontSize: font.small, marginTop: space.xs },
-
-  metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md, marginTop: space.lg },
-  metric: { minWidth: 70 },
   metricLabel: { color: colors.textFaint, fontSize: font.tiny, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  metricValue: { fontSize: font.h3, fontWeight: '800', marginTop: 3 },
+
+  // Persistent (sticky) header
+  stickyBar: {
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
+    paddingHorizontal: space.lg, paddingVertical: space.sm,
+  },
+  stickyTop: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  stickyThumb: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt },
+  stickyStreet: { color: colors.text, fontSize: font.body, fontWeight: '800' },
+  stickyCity: { color: colors.textFaint, fontSize: font.tiny, marginTop: 1 },
+  stickyMetrics: { flexDirection: 'row', justifyContent: 'space-between', gap: space.sm, marginTop: space.sm },
+  stickyMetric: { alignItems: 'center', flex: 1 },
+  stickyMetricLabel: { color: colors.textFaint, fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  stickyMetricValue: { fontSize: font.small, fontWeight: '800', marginTop: 1 },
 
   box: {
     backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
@@ -531,9 +578,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', gap: space.md, paddingVertical: 8,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
   },
-  comp: { flexDirection: 'row', gap: space.md, marginTop: space.sm, alignItems: 'center' },
+  comp: { flexDirection: 'row', gap: space.md, marginTop: space.sm, alignItems: 'flex-start' },
   compImg: { width: 84, height: 84, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt },
   compPrice: { color: colors.lime, fontSize: font.small, fontWeight: '800' },
+  compTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  compTag: {
+    color: colors.textDim, fontSize: font.tiny, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 2, overflow: 'hidden',
+  },
 
   reportBtn: { marginTop: space.xl, alignSelf: 'center', padding: space.md },
   actionBar: {
