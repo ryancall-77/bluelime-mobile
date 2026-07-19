@@ -340,13 +340,13 @@ export default function DealDetail() {
                   c.property_type || null,
                 ].filter(Boolean).join('  ·  ');
                 return (
-                  <Card key={c.id} style={styles.comp}>
+                  <View key={c.id} style={styles.compCard}>
                     {c.photo ? (
-                      <Image source={{ uri: c.photo }} style={styles.compImg} contentFit="cover" />
+                      <Image source={{ uri: c.photo }} style={styles.compPhoto} contentFit="cover" transition={150} />
                     ) : (
-                      <View style={[styles.compImg, styles.center]}><Text style={styles.faint}>No photo</Text></View>
+                      <View style={[styles.compPhoto, styles.center]}><Text style={styles.faint}>No photo</Text></View>
                     )}
-                    <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={styles.compBody}>
                       <View style={styles.rowBetween}>
                         <Text style={[styles.value, { flex: 1 }]} numberOfLines={1}>{c.address.split(',')[0]}</Text>
                         {c.sale_price_cents != null && <Text style={styles.compPrice}>{fmtUsd(c.sale_price_cents)}</Text>}
@@ -365,9 +365,13 @@ export default function DealDetail() {
                         )}
                       </View>
                     </View>
-                  </Card>
+                  </View>
                 );
               })}
+              <Text style={[styles.faint, { marginTop: space.sm }]}>
+                Every comp is a real, verified sale — pulled and sanity-checked by the engine, with the
+                distance shown so you can see they&apos;re truly nearby.
+              </Text>
             </View>
           )}
 
@@ -578,8 +582,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', gap: space.md, paddingVertical: 8,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
   },
-  comp: { flexDirection: 'row', gap: space.md, marginTop: space.sm, alignItems: 'flex-start' },
-  compImg: { width: 84, height: 84, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt },
+  compCard: {
+    backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+    overflow: 'hidden', marginTop: space.sm,
+  },
+  compPhoto: { width: '100%', aspectRatio: 16 / 10, backgroundColor: colors.surfaceAlt },
+  compBody: { padding: space.md, gap: 2 },
   compPrice: { color: colors.lime, fontSize: font.small, fontWeight: '800' },
   compTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   compTag: {
