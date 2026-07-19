@@ -3,13 +3,14 @@ import {
   Alert, Dimensions, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { Image } from 'expo-image';
+import * as WebBrowser from 'expo-web-browser';
 import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Button, Card, Loading, EmptyState } from '@/components/ui';
-import { EmbeddedReport } from '@/components/EmbeddedReport';
 import { getDeal, saveListing, reportContent } from '@/lib/api';
 import type { DealDetailResponse, MoneyLine } from '@/lib/types';
 import { colors, font, radius, space } from '@/lib/theme';
 import { fmtUsd, fmtBedBath, fmtCityState, fmtDate } from '@/lib/format';
+import { API_BASE } from '@/lib/config';
 
 const { width } = Dimensions.get('window');
 
@@ -282,13 +283,113 @@ export default function DealDetail() {
             </Card>
           ) : null}
 
-          {/* ── The full report ──
-              Rendered by embedding the canonical web report (comps w/ multiple
-              photos + click-to-enlarge, adjustments, condition grid, expand-all)
-              so it's byte-for-byte the mobile-browser report and never drifts. */}
-          {(rpt.condition || rpt.condition_score != null || rpt.rehab_items.length > 0 || rpt.comps.length > 0) && id && (
+          {/* ── The full report ── */}
+          {(rpt.condition || rpt.condition_score != null || rpt.rehab_items.length > 0 || rpt.comps.length > 0) && (
+            <>
+              <View style={styles.reportHeader}>
+                <Text style={styles.reportTitle}>The full report</Text>
+                <View style={styles.chipVerified}><Text style={styles.chipVerifiedText}>Verified by Bluelime</Text></View>
+              </View>
+              {/* Everything the mobile web report shows — every comp with all of
+                  its photos, the list→adjusted price, match factors, the condition
+                  breakdown and the adjustments math — opened in an in-app browser
+                  (the exact bluelime.ai report, always in sync). */}
+              {id && (
+                <Pressable
+                  onPress={() => WebBrowser.openBrowserAsync(`${API_BASE}/deals/p/${id}`)}
+                  style={styles.fullReportBtn}
+                  hitSlop={6}
+                >
+                  <Text style={styles.fullReportBtnText}>📄  Open the full underwriting report</Text>
+                  <Text style={styles.fullReportBtnSub}>All comp photos, adjustments & condition detail →</Text>
+                </Pressable>
+              )}
+            </>
+          )}
+
+          {/* Condition */}
+          {(rpt.condition || rpt.condition_score != null) && (
+            <Card style={{ marginTop: space.md }}>
+              <View style={styles.rowBetween}>
+                <Text style={styles.cardTitle}>Property condition</Text>
+                {rpt.condition_score != null && (
+                  <Text style={styles.faint}>condition score <Text style={styles.value}>{rpt.condition_score}/100</Text></Text>
+                )}
+              </View>
+              {rpt.condition ? <Text style={[styles.body, { marginTop: space.xs }]}>{rpt.condition}</Text> : null}
+            </Card>
+          )}
+
+          {/* Rehab estimate */}
+          {rpt.rehab_items.length > 0 && (
+            <Card style={{ marginTop: space.md }}>
+              <View style={styles.rowBetween}>
+                <Text style={styles.cardTitle}>Rehab estimate</Text>
+                <Text style={styles.faint}>total <Text style={styles.value}>{fmtUsd(rpt.rehab_total_cents)}</Text></Text>
+              </View>
+              <View style={{ marginTop: space.sm }}>
+                {rpt.rehab_items.map((r, i) => (
+                  <View key={i} style={[styles.rehabRow, i === 0 && { borderTopWidth: 0 }]}>
+                    <View style={{ flex: 1, paddingRight: space.md }}>
+                      <Text style={styles.value}>{r.label}</Text>
+                      {r.reasoning ? <Text style={styles.faint} numberOfLines={3}>{r.reasoning}</Text> : null}
+                    </View>
+                    <Text style={styles.mono}>{fmtUsd(r.cost_cents)}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={[styles.faint, { marginTop: space.sm }]}>Condition-scored from the property photos — not a seller guess.</Text>
+            </Card>
+          )}
+
+          {/* Comps */}
+          {rpt.comps.length > 0 && (
             <View style={{ marginTop: space.lg }}>
-              <EmbeddedReport dealId={id} />
+              <View style={styles.rowBetween}>
+                <Text style={styles.cardTitle}>Comparable sales <Text style={styles.faint}>({rpt.comps.length})</Text></Text>
+                {hasVerified && <Text style={styles.faint}>supports the ARV</Text>}
+              </View>
+              {rpt.comps.map((c) => {
+                const cityLine = c.address.split(',').slice(1).join(',').trim();
+                const ppsf = c.sale_price_cents != null && c.sqft ? Math.round(c.sale_price_cents / c.sqft) : null;
+                const line3 = [
+                  c.distance_miles != null ? `${c.distance_miles.toFixed(1)} mi away` : null,
+                  c.sale_date ? `sold ${fmtDate(c.sale_date)}` : null,
+                  c.property_type || null,
+                ].filter(Boolean).join('  ·  ');
+                return (
+                  <View key={c.id} style={styles.compCard}>
+                    {c.photo ? (
+                      <Image source={{ uri: c.photo }} style={styles.compPhoto} contentFit="cover" transition={150} />
+                    ) : (
+                      <View style={[styles.compPhoto, styles.center]}><Text style={styles.faint}>No photo</Text></View>
+                    )}
+                    <View style={styles.compBody}>
+                      <View style={styles.rowBetween}>
+                        <Text style={[styles.value, { flex: 1 }]} numberOfLines={1}>{c.address.split(',')[0]}</Text>
+                        {c.sale_price_cents != null && <Text style={styles.compPrice}>{fmtUsd(c.sale_price_cents)}</Text>}
+                      </View>
+                      {cityLine ? <Text style={styles.faint} numberOfLines={1}>{cityLine}</Text> : null}
+                      <Text style={styles.faint}>
+                        {fmtBedBath(c.beds, c.baths, c.sqft)}{ppsf != null ? `  ·  ${fmtUsd(ppsf)}/sqft` : ''}
+                      </Text>
+                      {line3 ? <Text style={styles.faint}>{line3}</Text> : null}
+                      <View style={styles.compTags}>
+                        {c.similarity_pct != null && (
+                          <Text style={[styles.compTag, { color: colors.lime, borderColor: 'rgba(125,226,75,0.4)' }]}>{c.similarity_pct}% match</Text>
+                        )}
+                        {c.condition_score != null && (
+                          <Text style={styles.compTag}>condition {c.condition_score}/5</Text>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+              <Text style={[styles.faint, { marginTop: space.sm }]}>
+                Every comp is a real, verified sale — pulled and sanity-checked by the engine, with the
+                distance shown so you can see they&apos;re truly nearby.
+              </Text>
             </View>
           )}
 
@@ -494,6 +595,12 @@ const styles = StyleSheet.create({
 
   reportHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.xl },
   reportTitle: { color: colors.text, fontSize: font.h2, fontWeight: '800' },
+  fullReportBtn: {
+    marginTop: space.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.blue,
+    borderRadius: radius.md, paddingVertical: space.md, paddingHorizontal: space.md,
+  },
+  fullReportBtnText: { color: colors.blue, fontSize: font.body, fontWeight: '800' },
+  fullReportBtnSub: { color: colors.textFaint, fontSize: font.small, marginTop: 2 },
 
   rehabRow: {
     flexDirection: 'row', justifyContent: 'space-between', gap: space.md, paddingVertical: 8,
