@@ -53,3 +53,11 @@ export function fmtDate(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
+
+// Month + year only — matches the web deal page's comp "sold Jan 2026".
+export function fmtMonthYear(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}

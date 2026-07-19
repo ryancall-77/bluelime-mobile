@@ -9,7 +9,7 @@ import { Button, Card, Loading, VerifiedBadge, EmptyState } from '@/components/u
 import { getDeal, saveListing, reportContent } from '@/lib/api';
 import type { DealDetailResponse } from '@/lib/types';
 import { colors, font, radius, space } from '@/lib/theme';
-import { fmtUsd, fmtBedBath, fmtCityState, fmtDate } from '@/lib/format';
+import { fmtUsd, fmtBedBath, fmtCityState, fmtMonthYear } from '@/lib/format';
 
 const { width } = Dimensions.get('window');
 
@@ -175,31 +175,52 @@ export default function DealDetail() {
             </Card>
           )}
 
-          {/* Comps */}
+          {/* Comparable sales — full cards, matching the web deal report */}
           {rpt.comps.length > 0 && (
             <View style={{ marginTop: space.lg }}>
-              <Text style={styles.cardTitle}>Verified comps ({rpt.comps.length})</Text>
+              <View style={styles.compHeader}>
+                <Text style={styles.cardTitle}>
+                  Comparable sales <Text style={styles.compCount}>({rpt.comps.length})</Text>
+                </Text>
+                <Text style={styles.compSub}>
+                  supports the ARV{deal.arv_cents != null ? ` of ${fmtUsd(deal.arv_cents)}` : ''}
+                </Text>
+              </View>
               {rpt.comps.map((c) => (
-                <Card key={c.id} style={styles.comp}>
+                <View key={c.id} style={styles.compCard}>
                   {c.photo ? (
-                    <Image source={{ uri: c.photo }} style={styles.compImg} contentFit="cover" />
+                    <Image source={{ uri: c.photo }} style={styles.compPhoto} contentFit="cover" transition={150} />
                   ) : (
-                    <View style={[styles.compImg, styles.galleryPlaceholder]} />
+                    <View style={[styles.compPhoto, styles.compPhotoEmpty]}>
+                      <Text style={styles.compNoPhoto}>No photo</Text>
+                    </View>
                   )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.value} numberOfLines={1}>{c.address}</Text>
-                    <Text style={styles.dim}>{fmtBedBath(c.beds, c.baths, c.sqft)}</Text>
-                    <Text style={styles.dim}>
-                      {c.sale_price_cents ? fmtUsd(c.sale_price_cents) : '—'}
-                      {c.sale_date ? ` · ${fmtDate(c.sale_date)}` : ''}
-                      {c.distance_miles != null ? ` · ${c.distance_miles.toFixed(1)} mi` : ''}
-                    </Text>
-                    {c.similarity_pct != null && (
-                      <Text style={[styles.dim, { color: colors.blue }]}>{c.similarity_pct}% match</Text>
-                    )}
+                  <View style={styles.compBody}>
+                    <View style={styles.compTopRow}>
+                      <Text style={styles.compAddr} numberOfLines={1}>{c.address.split(',')[0]}</Text>
+                      {c.sale_price_cents != null && (
+                        <Text style={styles.compPrice}>{fmtUsd(c.sale_price_cents)}</Text>
+                      )}
+                    </View>
+                    <Text style={styles.compSpecs}>{fmtBedBath(c.beds, c.baths, c.sqft)}</Text>
+                    <View style={styles.compMeta}>
+                      {c.distance_miles != null && (
+                        <Text style={styles.compMetaItem}>{c.distance_miles.toFixed(2)} mi away</Text>
+                      )}
+                      {c.sale_date ? (
+                        <Text style={styles.compMetaItem}>sold {fmtMonthYear(c.sale_date)}</Text>
+                      ) : null}
+                      {c.similarity_pct != null && (
+                        <Text style={[styles.compMetaItem, styles.compMatch]}>{c.similarity_pct}% match</Text>
+                      )}
+                    </View>
                   </View>
-                </Card>
+                </View>
               ))}
+              <Text style={styles.compFooter}>
+                Every comp is a real, verified sale — pulled and sanity-checked by the engine, with the
+                distance shown so you can see they&apos;re truly nearby.
+              </Text>
             </View>
           )}
 
@@ -255,8 +276,28 @@ const styles = StyleSheet.create({
   pnlNet: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: space.xs, paddingTop: space.md },
   pnlNetLabel: { color: colors.text, fontSize: font.body, fontWeight: '800' },
   rehabRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-  comp: { flexDirection: 'row', gap: space.md, marginTop: space.sm, alignItems: 'center' },
-  compImg: { width: 72, height: 72, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt },
+  compHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline',
+    gap: space.sm, marginBottom: space.sm,
+  },
+  compCount: { color: colors.textFaint, fontSize: font.body, fontWeight: '400' },
+  compSub: { color: colors.textFaint, fontSize: font.tiny },
+  compCard: {
+    backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+    overflow: 'hidden', marginTop: space.sm,
+  },
+  compPhoto: { width: '100%', aspectRatio: 16 / 10, backgroundColor: colors.surfaceAlt },
+  compPhotoEmpty: { alignItems: 'center', justifyContent: 'center' },
+  compNoPhoto: { color: colors.textFaint, fontSize: font.tiny },
+  compBody: { padding: space.md },
+  compTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: space.sm },
+  compAddr: { flex: 1, color: colors.text, fontSize: font.small, fontWeight: '700' },
+  compPrice: { color: colors.lime, fontSize: font.small, fontWeight: '800' },
+  compSpecs: { color: colors.textFaint, fontSize: font.small, marginTop: 4 },
+  compMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.md, marginTop: 6 },
+  compMetaItem: { color: colors.textFaint, fontSize: font.tiny },
+  compMatch: { color: colors.lime },
+  compFooter: { color: colors.textFaint, fontSize: font.tiny, marginTop: space.sm, lineHeight: 16 },
   reportBtn: { marginTop: space.xl, alignSelf: 'center', padding: space.md },
   reportText: { color: colors.textFaint, fontSize: font.small },
   actionBar: {
