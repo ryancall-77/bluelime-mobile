@@ -286,6 +286,14 @@ export default function DealDetail() {
               Rendered by embedding the canonical web report (comps w/ multiple
               photos + click-to-enlarge, adjustments, condition grid, expand-all)
               so it's byte-for-byte the mobile-browser report and never drifts. */}
+          {/* TEMP build marker — confirms the phone is running current JS.
+              Remove once the dev-client + Metro pipeline is verified. */}
+          <View style={{ marginTop: space.lg, backgroundColor: colors.lime, borderRadius: radius.sm, padding: space.sm }}>
+            <Text style={{ color: colors.bg, fontWeight: '800', textAlign: 'center' }}>
+              ✅ BUILD MARKER 7 — inline report active
+            </Text>
+          </View>
+
           {(rpt.condition || rpt.condition_score != null || rpt.rehab_items.length > 0 || rpt.comps.length > 0) && id && (
             <View style={{ marginTop: space.lg }}>
               <EmbeddedReport dealId={id} />
