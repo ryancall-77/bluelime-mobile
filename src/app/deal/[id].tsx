@@ -295,7 +295,10 @@ export default function DealDetail() {
           </View>
 
           {(rpt.condition || rpt.condition_score != null || rpt.rehab_items.length > 0 || rpt.comps.length > 0) && id && (
-            <View style={{ marginTop: space.lg }}>
+            // Full-bleed: cancel the parent `pad` (space.lg) horizontal padding so the
+            // embedded web report spans the entire screen width instead of sitting in a
+            // narrow center column. The web report supplies its own (small) gutter.
+            <View style={{ marginTop: space.lg, marginHorizontal: -space.lg }}>
               <EmbeddedReport dealId={id} />
             </View>
           )}
