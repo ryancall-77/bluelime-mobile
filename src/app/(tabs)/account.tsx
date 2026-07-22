@@ -10,6 +10,7 @@ import type { BuyerProfile, BuyBox } from '@/lib/types';
 import { colors, font, radius, space } from '@/lib/theme';
 import { SUPPORT_EMAIL, TERMS_URL, PRIVACY_URL } from '@/lib/config';
 import { fmtUsd } from '@/lib/format';
+import { BUILD_TAG } from '@/lib/buildTag';
 
 export default function Account() {
   const router = useRouter();
@@ -114,6 +115,7 @@ export default function Account() {
       <Button title="Sign out" onPress={signOut} variant="outline" style={{ marginBottom: space.lg }} />
       <Button title="Delete account" onPress={confirmDelete} loading={deleting} variant="danger" />
       <Text style={styles.footer}>Bluelime Deals · buyer app</Text>
+      <Text style={styles.footer}>{BUILD_TAG}</Text>
     </ScrollView>
   );
 }

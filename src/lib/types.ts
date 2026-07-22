@@ -20,17 +20,56 @@ export interface FeedResponse {
   deals: FeedDeal[];
 }
 
+// A signed cents line (P&L / cashflow breakdown). `text` overrides the money
+// value when the line is descriptive (e.g. "25% down · 30-yr @ 7.25%").
+export interface MoneyLine { label: string; cents: number; kind?: 'value' | 'cost' | 'income'; text?: string }
+
+// Seller marketing payload (from the CRM feed).
+export interface DealMarketing {
+  headline?: string | null;
+  description?: string | null;
+  highlights?: string | null;
+  offer_terms?: string | null;
+  offer_process?: string | null;
+  deal_type?: string | null;
+  buyer_report_url?: string | null;
+  contact?: { phone?: string | null; text_line?: string | null } | null;
+}
+
+// Buy-and-hold cashflow box (null when RentCast has no estimate).
+export interface RentBox {
+  rent_cents: number;
+  net_monthly_cents: number;
+  cap_rate_pct: number;
+  cash_on_cash_pct: number;
+  op_costs_cents: number;
+  op_cost_lines: MoneyLine[];
+  debt_service_cents: number;
+  debt_lines: MoneyLine[];
+}
+
 // Full detail — a superset of FeedDeal with the verified P&L lines and gallery.
 export interface DealDetail extends FeedDeal {
   zip?: string | null;
   year_built?: number | null;
   property_type?: string | null;
+  lot_sqft?: number | null;
   condition_score?: number | null;
   verified_at?: string | null;
   photos?: string[];
   net_profit_cents?: number | null;
   // P&L lines from the backend profit engine; each is signed cents.
-  pnl_lines?: { label: string; cents: number; kind: 'value' | 'cost' }[];
+  pnl_lines?: MoneyLine[];
+  // Flip-box detail — grouped closing/selling/holding costs + their breakdown.
+  costs_cents?: number | null;
+  cost_lines?: MoneyLine[];
+  // Buy-and-hold cashflow box (web parity); null when no rent estimate.
+  rent?: RentBox | null;
+  marketing?: DealMarketing | null;
+  accepting_offers?: boolean;
+  contract_verified?: boolean;
+  sale_mode?: string | null;
+  offer_deadline?: string | null;
   saved?: boolean;
   listing_state?: string;
 }
