@@ -8,6 +8,7 @@ import { API_BASE } from './config';
 import { getAccessToken } from './supabase';
 import type {
   FeedResponse, DealDetailResponse, ProfileResponse, BuyBox, ThreadResponse, ThreadMessage,
+  UnderwritingListItem, SubmitUnderwritingBody, SubmitUnderwritingResponse, PublishMarketplaceResponse,
 } from './types';
 
 async function authHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
@@ -110,6 +111,28 @@ export const deleteAccount = () =>
 // POST /api/marketplace/push/register → register this device's Expo push token.
 export const registerPushToken = (expo_push_token: string) =>
   send<{ ok: true }>('/api/marketplace/push/register', 'POST', { expo_push_token });
+
+// ───────────────────────── Underwriting ("My Deals" / supply side) ─────────────
+
+// GET /api/underwriting/list → this org's underwriting analyses (newest first).
+export const listUnderwritings = () =>
+  get<UnderwritingListItem[]>('/api/underwriting/list');
+
+// POST /api/underwriting/submit → run a new underwriting from the phone. Always
+// source 'mobile_app' — served by an RPR agent or queued (no local scrape).
+export const submitUnderwriting = (body: SubmitUnderwritingBody) =>
+  send<SubmitUnderwritingResponse>('/api/underwriting/submit', 'POST', { ...body, source: 'mobile_app' });
+
+// Post a completed underwriting to the Bluelime Marketplace and get the public
+// shareable buyer link. Two-step: generate the buyer snapshot, then publish it.
+export const postToMarketplace = async (analysisId: string): Promise<PublishMarketplaceResponse> => {
+  const id = encodeURIComponent(analysisId);
+  await send<{ ok: true; buyer_url?: string }>(`/api/underwriting/buyer-generate/${id}`, 'POST', {});
+  return send<PublishMarketplaceResponse>(`/api/underwriting/buyer-publish/${id}`, 'POST');
+};
+
+// The public report URL for an analysis (owner-facing full report) — loaded in a WebView.
+export const reportUrl = (accessToken: string) => `${API_BASE}/underwriting/${encodeURIComponent(accessToken)}`;
 
 // ───────────────────────── Offer (multipart with POF file) ─────────────────────────
 

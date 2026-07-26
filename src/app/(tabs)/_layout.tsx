@@ -30,6 +30,10 @@ export default function TabsLayout() {
         options={{ title: 'Saved', tabBarIcon: ({ color }) => <TabIcon icon="⭐" color={color} /> }}
       />
       <Tabs.Screen
+        name="mydeals"
+        options={{ title: 'My Deals', tabBarIcon: ({ color }) => <TabIcon icon="📊" color={color} /> }}
+      />
+      <Tabs.Screen
         name="account"
         options={{ title: 'Account', tabBarIcon: ({ color }) => <TabIcon icon="👤" color={color} /> }}
       />
