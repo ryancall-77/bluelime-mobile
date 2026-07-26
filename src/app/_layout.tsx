@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { onNotificationTap } from '@/lib/push';
@@ -31,11 +32,14 @@ function RootNavigator() {
     else if (signedIn && inAuthGroup) router.replace('/(tabs)');
   }, [ready, signedIn, segments, router]);
 
-  // Deep-link a push tap into the deal.
+  // Deep-link a push tap: a deal alert → the deal; an "underwriting ready" push
+  // (carries a report url) → the report in the in-app browser.
   useEffect(() => {
     if (!signedIn) return;
     return onNotificationTap((data) => {
-      if (data.deal_id) router.push(`/deal/${data.deal_id}`);
+      if (data.deal_id) { router.push(`/deal/${data.deal_id}`); return; }
+      const url = typeof data.url === 'string' ? data.url : null;
+      if (url && /\/underwriting\//.test(url)) { WebBrowser.openBrowserAsync(url).catch(() => {}); }
     });
   }, [signedIn, router]);
 
@@ -53,6 +57,8 @@ function RootNavigator() {
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="deal/[id]" options={{ title: 'Deal', headerBackTitle: 'Back' }} />
+      <Stack.Screen name="underwriting/new" options={{ title: 'New Underwriting', presentation: 'modal' }} />
+      <Stack.Screen name="underwriting/[id]" options={{ title: 'Underwriting', headerBackTitle: 'Back' }} />
       <Stack.Screen name="offer/[id]" options={{ title: 'Make an offer', presentation: 'modal' }} />
       <Stack.Screen name="messages/[id]" options={{ title: 'Messages' }} />
       <Stack.Screen name="buybox" options={{ title: 'Your buy-box', presentation: 'modal' }} />

@@ -150,3 +150,56 @@ export interface ThreadResponse {
   stage?: string;
   messages: ThreadMessage[];
 }
+
+// ───────────────────────── Underwriting (supply side / "My Deals") ─────────────
+// Mirrors /api/underwriting/list rows + /api/underwriting/submit response.
+
+export type UnderwritingStatus =
+  | 'processing' | 'queued' | 'pending_review' | 'under_review'
+  | 'approved' | 'complete' | 'failed' | 'pre_estimate_complete' | string;
+
+export interface UnderwritingListItem {
+  id: string;
+  property_address: string | null;
+  property_sqft: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  arv_cents: number | null;
+  cash_mao_cents: number | null;
+  novation_mao_cents: number | null;
+  final_cash_mao_cents: number | null;
+  final_novation_mao_cents: number | null;
+  status: UnderwritingStatus;
+  created_at: string;
+  created_by_name?: string;
+  access_token: string | null;        // → report WebView: /underwriting/<access_token>
+  buyer_share_token: string | null;
+  buyer_share_enabled: boolean | null; // already posted to marketplace?
+}
+
+export interface SubmitUnderwritingBody {
+  property_address: string;
+  property_sqft?: number | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  year_built?: number | null;
+  has_pool?: boolean;
+  lot_size?: number | null;
+  raw_property_type?: string | null;
+  salesperson_comments?: string | null;
+}
+
+export interface SubmitUnderwritingResponse {
+  ok: true;
+  analysis_id: string;
+  access_token: string;
+  review_url: string;
+  status: UnderwritingStatus;
+  queued?: boolean;
+  queue_message?: string | null;
+}
+
+export interface PublishMarketplaceResponse {
+  ok: true;
+  buyer_url: string; // public shareable buyer link (send to buyers)
+}
