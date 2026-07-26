@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { onNotificationTap } from '@/lib/push';
@@ -31,11 +32,14 @@ function RootNavigator() {
     else if (signedIn && inAuthGroup) router.replace('/(tabs)');
   }, [ready, signedIn, segments, router]);
 
-  // Deep-link a push tap into the deal.
+  // Deep-link a push tap: a deal alert → the deal; an "underwriting ready" push
+  // (carries a report url) → the report in the in-app browser.
   useEffect(() => {
     if (!signedIn) return;
     return onNotificationTap((data) => {
-      if (data.deal_id) router.push(`/deal/${data.deal_id}`);
+      if (data.deal_id) { router.push(`/deal/${data.deal_id}`); return; }
+      const url = typeof data.url === 'string' ? data.url : null;
+      if (url && /\/underwriting\//.test(url)) { WebBrowser.openBrowserAsync(url).catch(() => {}); }
     });
   }, [signedIn, router]);
 
