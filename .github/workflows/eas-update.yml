@@ -1,0 +1,57 @@
+name: EAS Update (OTA)
+
+# Ships an over-the-air JS update to the "preview" channel automatically on every
+# push to main (i.e. whenever a mobile change is merged), and on manual dispatch.
+# Testers get it on the next app relaunch — no rebuild, no local commands.
+#
+# One-time setup: add an EXPO_TOKEN repo secret
+# (Expo dashboard → Account → Access tokens → create a token, then
+#  GitHub → Settings → Secrets and variables → Actions → New repository secret).
+#
+# NOTE: OTA updates only apply when the native runtime is unchanged. If a PR adds
+# or upgrades a native module, run the "EAS Build" workflow instead.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - '.github/**'
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Update message shown in EAS'
+        required: false
+        default: 'Manual OTA update'
+
+concurrency:
+  group: eas-update-preview
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Publish OTA update
+        run: |
+          MSG="${{ github.event.inputs.message }}"
+          if [ -z "$MSG" ]; then MSG="${{ github.event.head_commit.message }}"; fi
+          eas update --branch preview --message "$MSG" --non-interactive
