@@ -57,6 +57,7 @@ function RootNavigator() {
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="deal/[id]" options={{ title: 'Deal', headerBackTitle: 'Back' }} />
+      <Stack.Screen name="account" options={{ title: 'Account', headerBackTitle: 'Back' }} />
       <Stack.Screen name="underwriting/new" options={{ title: 'New Underwriting', presentation: 'modal' }} />
       <Stack.Screen name="underwriting/[id]" options={{ title: 'Underwriting', headerBackTitle: 'Back' }} />
       <Stack.Screen name="offer/[id]" options={{ title: 'Make an offer', presentation: 'modal' }} />

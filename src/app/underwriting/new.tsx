@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button, Field, Pill, ErrorText } from '@/components/ui';
+import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { submitUnderwriting } from '@/lib/api';
 import { colors, space, font, radius } from '@/lib/theme';
 
@@ -74,8 +75,8 @@ export default function NewUnderwriting() {
           automatically, but you can override if you already know them.
         </Text>
 
-        <Field label="Property address *" value={address} onChangeText={setAddress}
-          placeholder="123 Main St, Tampa, FL 33601" autoCapitalize="words" autoCorrect={false} />
+        <AddressAutocomplete label="Property address *" value={address} onChangeText={setAddress}
+          placeholder="Start typing an address…" />
 
         <View style={styles.row}>
           <View style={styles.half}><Field label="Sqft" value={sqft} onChangeText={setSqft} placeholder="1,757" keyboardType="number-pad" /></View>

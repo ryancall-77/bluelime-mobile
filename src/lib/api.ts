@@ -134,6 +134,17 @@ export const postToMarketplace = async (analysisId: string): Promise<PublishMark
 // The public report URL for an analysis (owner-facing full report) — loaded in a WebView.
 export const reportUrl = (accessToken: string) => `${API_BASE}/underwriting/${encodeURIComponent(accessToken)}`;
 
+// ───────────────────────── Address autocomplete (Google Places, server-proxied) ─────────────
+
+export interface PlacePrediction { description: string; place_id: string }
+
+// GET /api/places/autocomplete → US street-address suggestions. The Maps key
+// lives server-side; we just pass the typed input + a rotating session token.
+export const placesAutocomplete = (input: string, session: string) =>
+  get<{ predictions: PlacePrediction[] }>(
+    `/api/places/autocomplete?input=${encodeURIComponent(input)}&session=${encodeURIComponent(session)}`,
+  );
+
 // ───────────────────────── Offer (multipart with POF file) ─────────────────────────
 
 export interface OfferInput {
