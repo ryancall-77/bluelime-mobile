@@ -54,4 +54,7 @@ jobs:
         run: |
           MSG="${{ github.event.inputs.message }}"
           if [ -z "$MSG" ]; then MSG="${{ github.event.head_commit.message }}"; fi
-          eas update --branch preview --message "$MSG" --non-interactive
+          # iOS only: --platform=all would also web-export, and Expo Router's
+          # web static render evaluates native-only modules (secureStore/supabase)
+          # under Node and crashes. This is an iPhone app, so publish iOS.
+          eas update --branch preview --platform ios --message "$MSG" --non-interactive
