@@ -9,7 +9,7 @@ import { getAccessToken } from './supabase';
 import type {
   FeedResponse, DealDetailResponse, ProfileResponse, BuyBox, ThreadResponse, ThreadMessage,
   UnderwritingListItem, SubmitUnderwritingBody, SubmitUnderwritingResponse, PublishMarketplaceResponse,
-  ThreadListItem, SellerThreadListItem, SellerThreadResponse,
+  ThreadListItem, SellerThreadListItem, SellerThreadResponse, OfferListItem,
 } from './types';
 
 async function authHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
@@ -82,6 +82,9 @@ export const postThreadMessage = (id: string, message: string) =>
   send<{ ok: true; message: ThreadMessage }>(
     `/api/marketplace/listings/${encodeURIComponent(id)}/thread`, 'POST', { message },
   );
+
+// GET /api/marketplace/offers → the buyer's offers across listings, with status.
+export const listOffers = () => get<{ offers: OfferListItem[] }>('/api/marketplace/offers');
 
 // GET /api/marketplace/threads → the buyer's message inbox (one row per thread).
 export const listThreads = () => get<{ threads: ThreadListItem[] }>('/api/marketplace/threads');

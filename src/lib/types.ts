@@ -186,6 +186,23 @@ export interface ThreadMessage {
   created_at: string;
 }
 
+// Buyer offer row (Offers pipeline tab).
+export interface OfferListItem {
+  id: string;
+  listing_id: string;
+  amount_cents: number | null;
+  status: 'submitted' | 'countered' | 'accepted' | 'declined' | 'withdrawn' | string;
+  round: number;
+  counter_cents: number | null;
+  seller_note: string | null;
+  responded_at: string | null;
+  created_at: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  photo: string | null;
+}
+
 // Inbox rows (buyer Messages tab / seller Buyers tab).
 export interface ThreadListItem {
   listing_id: string;
