@@ -7,5 +7,5 @@ import { Loading } from '@/components/ui';
 export default function Index() {
   const { ready, signedIn } = useAuth();
   if (!ready) return <Loading />;
-  return <Redirect href={signedIn ? '/(tabs)' : '/(auth)/login'} />;
+  return <Redirect href={signedIn ? '/(marketplace)' : '/(auth)/login'} />;
 }
