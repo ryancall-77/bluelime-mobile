@@ -9,6 +9,7 @@ import { getAccessToken } from './supabase';
 import type {
   FeedResponse, DealDetailResponse, ProfileResponse, BuyBox, ThreadResponse, ThreadMessage,
   UnderwritingListItem, SubmitUnderwritingBody, SubmitUnderwritingResponse, PublishMarketplaceResponse,
+  ThreadListItem, SellerThreadListItem, SellerThreadResponse,
 } from './types';
 
 async function authHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
@@ -80,6 +81,22 @@ export const getThread = (id: string) =>
 export const postThreadMessage = (id: string, message: string) =>
   send<{ ok: true; message: ThreadMessage }>(
     `/api/marketplace/listings/${encodeURIComponent(id)}/thread`, 'POST', { message },
+  );
+
+// GET /api/marketplace/threads → the buyer's message inbox (one row per thread).
+export const listThreads = () => get<{ threads: ThreadListItem[] }>('/api/marketplace/threads');
+
+// GET /api/marketplace/seller/threads → the seller's inbox (buyers on the org's listings).
+export const listSellerThreads = () => get<{ threads: SellerThreadListItem[] }>('/api/marketplace/seller/threads');
+
+// GET /api/marketplace/seller/threads/[interestId] → seller view of one thread.
+export const getSellerThread = (interestId: string) =>
+  get<SellerThreadResponse>(`/api/marketplace/seller/threads/${encodeURIComponent(interestId)}`);
+
+// POST /api/marketplace/seller/threads/[interestId] → seller reply (pushes the buyer).
+export const postSellerThreadMessage = (interestId: string, message: string) =>
+  send<{ ok: true; message: ThreadMessage }>(
+    `/api/marketplace/seller/threads/${encodeURIComponent(interestId)}`, 'POST', { message },
   );
 
 // POST /api/marketplace/listings/[id]/inquire → open a new inquiry / message the
