@@ -1,29 +1,95 @@
-import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Button, EmptyState } from '@/components/ui';
-import { colors, space } from '@/lib/theme';
+import React, { useCallback, useState } from 'react';
+import { FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { EmptyState, Loading, Button } from '@/components/ui';
+import { listSellerThreads } from '@/lib/api';
+import type { SellerThreadListItem } from '@/lib/types';
+import { fmtDate } from '@/lib/format';
+import { colors, font, radius, space } from '@/lib/theme';
 
-// Buyers — the disposition side: buyers who saved, inquired, or made offers on
-// YOUR listings. (Live data lands in the fast-follow; the buyer-interest
-// endpoint is being wired next.)
+// Buyers — the dispo side: buyers messaging your listings. A message = a lead.
+// Tap → the seller thread (reply from there). Unread = buyer messages not read.
 export default function Buyers() {
   const router = useRouter();
+  const [threads, setThreads] = useState<SellerThreadListItem[] | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    try {
+      const res = await listSellerThreads();
+      setThreads(res.threads ?? []);
+    } catch {
+      setThreads((t) => t ?? []);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  if (threads === null) return <Loading label="Loading buyer activity…" />;
+
   return (
-    <ScrollView style={styles.wrap} contentContainerStyle={styles.content}>
-      <View style={styles.fill}>
+    <FlatList
+      style={styles.list}
+      contentContainerStyle={styles.content}
+      data={threads}
+      keyExtractor={(t) => t.interest_id}
+      renderItem={({ item }) => {
+        const snippet = item.last_message
+          ? `${item.last_message.sender === 'seller' ? 'You: ' : ''}${item.last_message.body}`
+          : 'New inquiry';
+        return (
+          <Pressable
+            onPress={() => router.push(`/seller-thread/${item.interest_id}`)}
+            style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
+          >
+            {item.photo
+              ? <Image source={{ uri: item.photo }} style={styles.thumb} />
+              : <View style={[styles.thumb, styles.thumbEmpty]}><Text style={styles.thumbGlyph}>🏠</Text></View>}
+            <View style={styles.mid}>
+              <Text style={styles.who} numberOfLines={1}>{item.buyer_name}</Text>
+              <Text style={styles.addr} numberOfLines={1}>{item.address || 'Deal'}</Text>
+              <Text style={[styles.snippet, item.unread > 0 && styles.snippetUnread]} numberOfLines={1}>{snippet}</Text>
+            </View>
+            <View style={styles.right}>
+              {item.last_message ? <Text style={styles.time}>{fmtDate(item.last_message.created_at)}</Text> : null}
+              {item.unread > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>{item.unread}</Text></View> : null}
+            </View>
+          </Pressable>
+        );
+      }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.blue} />}
+      ListEmptyComponent={
         <EmptyState
           title="No buyer activity yet"
-          body="When buyers save, message, or make offers on your listings, they’ll show up here so you can work your dispo in one place."
+          body="When buyers message or inquire on your listings, they show up here so you can work your dispo in one place."
           action={<Button title="View your listings" onPress={() => router.push('/(underwriting)/listings')} />}
         />
-      </View>
-    </ScrollView>
+      }
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: colors.bg },
-  content: { flexGrow: 1, padding: space.lg },
-  fill: { flex: 1, justifyContent: 'center' },
+  list: { flex: 1, backgroundColor: colors.bg },
+  content: { padding: space.lg, flexGrow: 1 },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: space.md,
+    backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
+    padding: space.md, marginBottom: space.sm,
+  },
+  thumb: { width: 52, height: 52, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
+  thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
+  thumbGlyph: { fontSize: 22 },
+  mid: { flex: 1 },
+  who: { color: colors.text, fontSize: font.body, fontWeight: '700' },
+  addr: { color: colors.textDim, fontSize: font.small, marginTop: 1 },
+  snippet: { color: colors.textDim, fontSize: font.small, marginTop: 2 },
+  snippetUnread: { color: colors.text, fontWeight: '600' },
+  right: { alignItems: 'flex-end', gap: 6 },
+  time: { color: colors.textFaint, fontSize: font.tiny },
+  badge: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { color: colors.white, fontSize: font.tiny, fontWeight: '800' },
 });

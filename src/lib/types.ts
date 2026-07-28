@@ -186,6 +186,31 @@ export interface ThreadMessage {
   created_at: string;
 }
 
+// Inbox rows (buyer Messages tab / seller Buyers tab).
+export interface ThreadListItem {
+  listing_id: string;
+  interest_id: string;
+  stage: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  photo: string | null;
+  last_message: { body: string; sender: 'buyer' | 'seller'; created_at: string } | null;
+  unread: number;
+  updated_at: string;
+}
+export interface SellerThreadListItem extends ThreadListItem {
+  buyer_name: string;
+}
+export interface SellerThreadResponse {
+  interest_id: string;
+  listing_id: string;
+  stage: string;
+  address: string | null;
+  buyer_name: string;
+  messages: ThreadMessage[];
+}
+
 export interface ThreadResponse {
   interest_id: string | null;
   stage?: string;

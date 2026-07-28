@@ -1,29 +1,93 @@
-import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Button, EmptyState } from '@/components/ui';
-import { colors, space } from '@/lib/theme';
+import React, { useCallback, useState } from 'react';
+import { FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { EmptyState, Loading, Button } from '@/components/ui';
+import { listThreads } from '@/lib/api';
+import type { ThreadListItem } from '@/lib/types';
+import { fmtDate } from '@/lib/format';
+import { colors, font, radius, space } from '@/lib/theme';
 
-// Messages — your conversations with sellers/buyers. (Live inbox lands in the
-// fast-follow; the thread-list endpoint is being wired next. Per-deal threads
-// already work from a deal's page today.)
+// Messages — the buyer's inbox: one row per deal they're talking to a seller
+// about. Tap → the thread (per-listing). Unread = seller messages not yet read.
 export default function Messages() {
   const router = useRouter();
+  const [threads, setThreads] = useState<ThreadListItem[] | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    try {
+      const res = await listThreads();
+      setThreads(res.threads ?? []);
+    } catch {
+      setThreads((t) => t ?? []);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  if (threads === null) return <Loading label="Loading your messages…" />;
+
   return (
-    <ScrollView style={styles.wrap} contentContainerStyle={styles.content}>
-      <View style={styles.fill}>
+    <FlatList
+      style={styles.list}
+      contentContainerStyle={styles.content}
+      data={threads}
+      keyExtractor={(t) => t.interest_id}
+      renderItem={({ item }) => {
+        const snippet = item.last_message
+          ? `${item.last_message.sender === 'buyer' ? 'You: ' : ''}${item.last_message.body}`
+          : 'Inquiry sent';
+        return (
+          <Pressable
+            onPress={() => router.push(`/messages/${item.listing_id}`)}
+            style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
+          >
+            {item.photo
+              ? <Image source={{ uri: item.photo }} style={styles.thumb} />
+              : <View style={[styles.thumb, styles.thumbEmpty]}><Text style={styles.thumbGlyph}>🏠</Text></View>}
+            <View style={styles.mid}>
+              <Text style={styles.addr} numberOfLines={1}>{item.address || 'Deal'}</Text>
+              <Text style={[styles.snippet, item.unread > 0 && styles.snippetUnread]} numberOfLines={1}>{snippet}</Text>
+            </View>
+            <View style={styles.right}>
+              {item.last_message ? <Text style={styles.time}>{fmtDate(item.last_message.created_at)}</Text> : null}
+              {item.unread > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>{item.unread}</Text></View> : null}
+            </View>
+          </Pressable>
+        );
+      }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.blue} />}
+      ListEmptyComponent={
         <EmptyState
           title="No messages yet"
-          body="When you message a seller about a deal (or a buyer messages you), the conversation shows up here."
+          body="Message a seller from any deal to start a conversation — it’ll show up here."
           action={<Button title="Browse deals" onPress={() => router.push('/(marketplace)')} />}
         />
-      </View>
-    </ScrollView>
+      }
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: colors.bg },
-  content: { flexGrow: 1, padding: space.lg },
-  fill: { flex: 1, justifyContent: 'center' },
+  list: { flex: 1, backgroundColor: colors.bg },
+  content: { padding: space.lg, flexGrow: 1 },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: space.md,
+    backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
+    padding: space.md, marginBottom: space.sm,
+  },
+  thumb: { width: 52, height: 52, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
+  thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
+  thumbGlyph: { fontSize: 22 },
+  mid: { flex: 1 },
+  addr: { color: colors.text, fontSize: font.body, fontWeight: '700' },
+  snippet: { color: colors.textDim, fontSize: font.small, marginTop: 2 },
+  snippetUnread: { color: colors.text, fontWeight: '600' },
+  right: { alignItems: 'flex-end', gap: 6 },
+  time: { color: colors.textFaint, fontSize: font.tiny },
+  badge: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { color: colors.white, fontSize: font.tiny, fontWeight: '800' },
 });
