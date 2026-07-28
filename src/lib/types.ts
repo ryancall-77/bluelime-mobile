@@ -14,6 +14,8 @@ export interface FeedDeal {
   beds: number | null;
   baths: number | null;
   sqft: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface FeedResponse {
