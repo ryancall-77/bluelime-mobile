@@ -102,6 +102,15 @@ export const postSellerThreadMessage = (interestId: string, message: string) =>
     `/api/marketplace/seller/threads/${encodeURIComponent(interestId)}`, 'POST', { message },
   );
 
+// POST /api/marketplace/seller/threads/[interestId]/respond → accept/counter/decline
+// the buyer's live offer (notifies the buyer by email + push).
+export const respondToOffer = (
+  interestId: string,
+  body: { action: 'accept' | 'counter' | 'decline'; counter_cents?: number; note?: string },
+) => send<{ ok: true; offer: { id: string; amount_cents: number | null; status: string; counter_cents: number | null } }>(
+  `/api/marketplace/seller/threads/${encodeURIComponent(interestId)}/respond`, 'POST', body,
+);
+
 // POST /api/marketplace/listings/[id]/inquire → open a new inquiry / message the
 // seller (creates the thread if none exists).
 export const inquire = (id: string, body: { name: string; email: string; phone?: string; message?: string }) =>

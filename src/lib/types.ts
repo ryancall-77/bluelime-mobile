@@ -216,8 +216,18 @@ export interface ThreadListItem {
   unread: number;
   updated_at: string;
 }
+// Live offer summary attached to a seller thread / inbox row.
+export interface ThreadOffer {
+  id: string;
+  amount_cents: number | null;
+  status: 'submitted' | 'countered' | string;
+  counter_cents: number | null;
+  note?: string | null;
+  created_at?: string;
+}
 export interface SellerThreadListItem extends ThreadListItem {
   buyer_name: string;
+  offer?: ThreadOffer | null;
 }
 export interface SellerThreadResponse {
   interest_id: string;
@@ -225,6 +235,7 @@ export interface SellerThreadResponse {
   stage: string;
   address: string | null;
   buyer_name: string;
+  offer?: ThreadOffer | null;
   messages: ThreadMessage[];
 }
 

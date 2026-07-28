@@ -4,19 +4,22 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Screen, Loading, EmptyState } from '@/components/ui';
-import { getSellerThread, postSellerThreadMessage } from '@/lib/api';
-import type { ThreadMessage } from '@/lib/types';
+import { getSellerThread, postSellerThreadMessage, respondToOffer } from '@/lib/api';
+import type { ThreadMessage, ThreadOffer } from '@/lib/types';
 import { colors, font, radius, space } from '@/lib/theme';
-import { fmtDate } from '@/lib/format';
+import { fmtDate, fmtUsd } from '@/lib/format';
 
 // Seller side of a buyer thread (opened from the Buyers tab). 'seller' messages
-// are mine; replying pushes the buyer.
+// are mine; replying pushes the buyer. If the buyer has a live offer, a bar at
+// the top lets the seller accept / counter / decline.
 export default function SellerThread() {
   const { id } = useLocalSearchParams<{ id: string }>(); // interest_id
   const [messages, setMessages] = useState<ThreadMessage[] | null>(null);
+  const [offer, setOffer] = useState<ThreadOffer | null>(null);
   const [title, setTitle] = useState('Buyer');
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [acting, setActing] = useState(false);
   const listRef = useRef<FlatList>(null);
 
   const load = useCallback(async () => {
@@ -25,6 +28,7 @@ export default function SellerThread() {
       const res = await getSellerThread(String(id));
       setMessages(res.messages ?? []);
       setTitle(res.buyer_name || 'Buyer');
+      setOffer(res.offer ?? null);
     } catch {
       setMessages([]);
     }
@@ -51,12 +55,72 @@ export default function SellerThread() {
     }
   };
 
+  const respond = async (action: 'accept' | 'counter' | 'decline', counterCents?: number) => {
+    if (!id || acting) return;
+    setActing(true);
+    try {
+      await respondToOffer(String(id), { action, ...(counterCents ? { counter_cents: counterCents } : {}) });
+      await load();
+      Alert.alert(
+        action === 'accept' ? 'Offer accepted' : action === 'counter' ? 'Counter sent' : 'Offer declined',
+        action === 'accept' ? 'The buyer has been notified.' : 'The buyer has been notified.',
+      );
+    } catch (e) {
+      Alert.alert('Could not respond', e instanceof Error ? e.message : 'Try again.');
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const onCounter = () => {
+    // iOS supports Alert.prompt for a quick amount entry.
+    if (Platform.OS === 'ios') {
+      Alert.prompt('Counter offer', 'Enter your counter amount (USD).', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send counter',
+          onPress: (val?: string) => {
+            const n = parseInt((val || '').replace(/[^0-9]/g, ''), 10);
+            if (!n || n <= 0) { Alert.alert('Enter a valid amount'); return; }
+            respond('counter', n * 100);
+          },
+        },
+      ], 'plain-text', '', 'number-pad');
+    } else {
+      Alert.alert('Counter offer', 'Countering is available on iOS for now.');
+    }
+  };
+
+  const confirm = (action: 'accept' | 'decline') => {
+    Alert.alert(
+      action === 'accept' ? 'Accept this offer?' : 'Decline this offer?',
+      action === 'accept'
+        ? 'Accepting notifies the buyer and declines any other live offers on this deal.'
+        : 'The buyer will be notified their offer was declined.',
+      [{ text: 'Cancel', style: 'cancel' }, { text: action === 'accept' ? 'Accept' : 'Decline', style: action === 'accept' ? 'default' : 'destructive', onPress: () => respond(action) }],
+    );
+  };
+
   if (messages === null) return <Loading label="Loading conversation…" />;
 
   return (
     <Screen>
       <Stack.Screen options={{ title }} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90} style={{ flex: 1 }}>
+        {offer ? (
+          <View style={styles.offerBar}>
+            <View style={styles.offerTop}>
+              <Text style={styles.offerLabel}>{offer.status === 'countered' ? 'Countered — buyer’s offer' : 'Buyer offer'}</Text>
+              <Text style={styles.offerAmount}>{fmtUsd(offer.amount_cents)}</Text>
+            </View>
+            <View style={styles.offerBtns}>
+              <Pressable disabled={acting} onPress={() => confirm('accept')} style={[styles.oBtn, styles.accept]}><Text style={styles.acceptText}>Accept</Text></Pressable>
+              <Pressable disabled={acting} onPress={onCounter} style={[styles.oBtn, styles.counter]}><Text style={styles.counterText}>Counter</Text></Pressable>
+              <Pressable disabled={acting} onPress={() => confirm('decline')} style={[styles.oBtn, styles.decline]}><Text style={styles.declineText}>Decline</Text></Pressable>
+            </View>
+          </View>
+        ) : null}
+
         <FlatList
           ref={listRef}
           data={messages}
@@ -101,6 +165,18 @@ const styles = StyleSheet.create({
   theirs: { alignSelf: 'flex-start', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   bubbleText: { color: colors.text, fontSize: font.body, lineHeight: 20 },
   time: { color: colors.textFaint, fontSize: font.tiny, marginTop: 4 },
+  offerBar: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, padding: space.md },
+  offerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm },
+  offerLabel: { color: colors.textDim, fontSize: font.small, fontWeight: '600' },
+  offerAmount: { color: colors.lime, fontSize: font.h3, fontWeight: '800' },
+  offerBtns: { flexDirection: 'row', gap: space.sm },
+  oBtn: { flex: 1, borderRadius: radius.md, paddingVertical: 10, alignItems: 'center', borderWidth: 1 },
+  accept: { backgroundColor: colors.lime, borderColor: colors.lime },
+  acceptText: { color: colors.bg, fontWeight: '800' },
+  counter: { backgroundColor: 'transparent', borderColor: colors.blue },
+  counterText: { color: colors.blue, fontWeight: '700' },
+  decline: { backgroundColor: 'transparent', borderColor: colors.border },
+  declineText: { color: colors.textDim, fontWeight: '700' },
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end', gap: space.sm, padding: space.md,
     borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface,

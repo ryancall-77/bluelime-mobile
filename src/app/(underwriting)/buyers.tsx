@@ -4,7 +4,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { EmptyState, Loading, Button } from '@/components/ui';
 import { listSellerThreads } from '@/lib/api';
 import type { SellerThreadListItem } from '@/lib/types';
-import { fmtDate } from '@/lib/format';
+import { fmtDate, fmtUsd } from '@/lib/format';
 import { colors, font, radius, space } from '@/lib/theme';
 
 // Buyers — the dispo side: buyers messaging your listings. A message = a lead.
@@ -52,6 +52,11 @@ export default function Buyers() {
               <Text style={styles.who} numberOfLines={1}>{item.buyer_name}</Text>
               <Text style={styles.addr} numberOfLines={1}>{item.address || 'Deal'}</Text>
               <Text style={[styles.snippet, item.unread > 0 && styles.snippetUnread]} numberOfLines={1}>{snippet}</Text>
+              {item.offer ? (
+                <View style={styles.offerPill}>
+                  <Text style={styles.offerPillText}>💵 {fmtUsd(item.offer.amount_cents)}{item.offer.status === 'countered' ? ' · countered' : ''}</Text>
+                </View>
+              ) : null}
             </View>
             <View style={styles.right}>
               {item.last_message ? <Text style={styles.time}>{fmtDate(item.last_message.created_at)}</Text> : null}
@@ -88,6 +93,8 @@ const styles = StyleSheet.create({
   addr: { color: colors.textDim, fontSize: font.small, marginTop: 1 },
   snippet: { color: colors.textDim, fontSize: font.small, marginTop: 2 },
   snippetUnread: { color: colors.text, fontWeight: '600' },
+  offerPill: { alignSelf: 'flex-start', marginTop: 4, backgroundColor: 'rgba(125,226,75,0.12)', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  offerPillText: { color: colors.lime, fontSize: font.tiny, fontWeight: '700' },
   right: { alignItems: 'flex-end', gap: 6 },
   time: { color: colors.textFaint, fontSize: font.tiny },
   badge: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
