@@ -47,7 +47,7 @@ export default function Watchlist() {
         <EmptyState
           title="Nothing saved yet"
           body="Tap the ⭐ on any deal to keep it here for quick access."
-          action={<Button title="Browse deals" onPress={() => router.push('/(tabs)')} />}
+          action={<Button title="Browse deals" onPress={() => router.push('/(marketplace)')} />}
         />
       }
     />

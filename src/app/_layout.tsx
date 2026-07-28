@@ -14,7 +14,7 @@ import { colors } from '@/lib/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-// Redirects between the (auth) and (tabs) groups based on session state, and
+// Redirects between the (auth) and (marketplace)/(underwriting) groups based on session state, and
 // routes a tapped push notification into the deal detail.
 function RootNavigator() {
   const { ready, signedIn } = useAuth();
@@ -29,7 +29,7 @@ function RootNavigator() {
     if (!ready) return;
     const inAuthGroup = segments[0] === '(auth)';
     if (!signedIn && !inAuthGroup) router.replace('/(auth)/login');
-    else if (signedIn && inAuthGroup) router.replace('/(tabs)');
+    else if (signedIn && inAuthGroup) router.replace('/(marketplace)');
   }, [ready, signedIn, segments, router]);
 
   // Deep-link a push tap: a deal alert → the deal; an "underwriting ready" push
@@ -55,7 +55,8 @@ function RootNavigator() {
       }}
     >
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(marketplace)" options={{ headerShown: false }} />
+      <Stack.Screen name="(underwriting)" options={{ headerShown: false }} />
       <Stack.Screen name="deal/[id]" options={{ title: 'Deal', headerBackTitle: 'Back' }} />
       <Stack.Screen name="account" options={{ title: 'Account', headerBackTitle: 'Back' }} />
       <Stack.Screen name="underwriting/new" options={{ title: 'New Underwriting', presentation: 'modal' }} />
