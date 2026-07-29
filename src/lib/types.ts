@@ -308,7 +308,10 @@ export interface PublishMarketplaceResponse {
     listingId: string | null;
     created: boolean;
     becameActive: boolean;
-    skipped?: 'no_ask_price' | 'crm_owned' | 'not_listable';
+    skipped?: 'no_ask_price' | 'crm_owned' | 'not_listable' | 'state_blocked';
     error?: string;
   } | null;
+  // Buy-box alert fan-out result; null when listing quietly (notify_buyers:false).
+  alerts?: { alerted: number; matched: number } | null;
+  notified?: boolean;
 }

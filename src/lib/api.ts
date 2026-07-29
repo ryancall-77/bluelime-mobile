@@ -186,13 +186,20 @@ export interface PrepareListingInput {
 
 // Generate the buyer report from the prepared inputs, then publish to the
 // Marketplace and hand back the public buyer link to share.
+//
+// notifyBuyers=false lists the deal QUIETLY (no buy-box alerts) so the seller can
+// check the live page first. Publishing again with it true still alerts — alerts
+// are idempotent per buyer, so nobody is ever notified twice.
 export const prepareAndPublish = async (
   analysisId: string,
   input: PrepareListingInput,
+  notifyBuyers = true,
 ): Promise<PublishMarketplaceResponse> => {
   const id = encodeURIComponent(analysisId);
   await send<{ ok: true; buyer_url?: string }>(`/api/underwriting/buyer-generate/${id}`, 'POST', input);
-  return send<PublishMarketplaceResponse>(`/api/underwriting/buyer-publish/${id}`, 'POST');
+  return send<PublishMarketplaceResponse>(
+    `/api/underwriting/buyer-publish/${id}`, 'POST', { notify_buyers: notifyBuyers },
+  );
 };
 
 // The public report URL for an analysis (owner-facing full report) — loaded in a WebView.

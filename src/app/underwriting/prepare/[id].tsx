@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView,
-  Share, StyleSheet, Text, View,
+  Share, StyleSheet, Switch, Text, View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -47,6 +47,9 @@ export default function PrepareListing() {
   const [contactUrl, setContactUrl] = useState('');
   const [contactLabel, setContactLabel] = useState('Make an Offer');
   const [contactTextLine, setContactTextLine] = useState('');
+  // Alert matching buyers on publish. Off = list quietly so you can check the live
+  // page first; you can alert afterwards (alerts never double-send to a buyer).
+  const [notifyBuyers, setNotifyBuyers] = useState(true);
 
   const [busy, setBusy] = useState(false);
 
@@ -114,7 +117,7 @@ export default function PrepareListing() {
         contact_url: contactUrl.trim(),
         contact_label: contactLabel.trim() || 'Make an Offer',
         contact_text_line: contactTextLine.trim(),
-      });
+      }, notifyBuyers);
       const shareUrl = res.listing_url || res.buyer_url;
       try {
         await Share.share({
@@ -123,10 +126,13 @@ export default function PrepareListing() {
         });
       } catch { /* user cancelled the share sheet */ }
       const listed = !!res.listing_url;
+      const alerted = res.alerts?.alerted ?? 0;
       Alert.alert(
         listed ? 'Live on the Marketplace' : 'Buyer link published',
         listed
-          ? 'Your deal is listed on the Marketplace and matching buyers have been alerted.'
+          ? notifyBuyers
+            ? `Your deal is listed. ${alerted} matching buyer${alerted === 1 ? '' : 's'} alerted.`
+            : 'Your deal is listed quietly — no buyers were alerted. Publish again with alerts on when you’re ready.'
           : res.listing?.error
             ? `The buyer link is live, but the Marketplace listing failed: ${res.listing.error}`
             : 'The buyer link is live. Add an offer price to list it on the Marketplace.',
@@ -279,8 +285,27 @@ export default function PrepareListing() {
           keyboardType="phone-pad"
         />
 
+        {/* Alert matching buyers, or list quietly to eyeball the live page first. */}
+        <Text style={styles.section}>Buyer alerts</Text>
+        <Pressable style={styles.switchRow} onPress={() => setNotifyBuyers((v) => !v)}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.switchLabel}>Alert matching buyers</Text>
+            <Text style={styles.switchHint}>
+              {notifyBuyers
+                ? 'Buyers whose buy-box matches get notified as soon as it lists.'
+                : 'Lists quietly — nobody is alerted. You can alert them later.'}
+            </Text>
+          </View>
+          <Switch
+            value={notifyBuyers}
+            onValueChange={setNotifyBuyers}
+            trackColor={{ true: colors.blue, false: colors.border }}
+            thumbColor={colors.white}
+          />
+        </Pressable>
+
         <Button
-          title="🚀 Publish to Marketplace"
+          title={notifyBuyers ? '🚀 Publish to Marketplace' : '🚀 List quietly (no alerts)'}
           onPress={submit}
           loading={busy}
           disabled={!canSubmit}
@@ -317,5 +342,12 @@ const styles = StyleSheet.create({
   label: { color: colors.textDim, fontSize: font.small, fontWeight: '600', marginBottom: space.xs },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.md },
   assignNote: { color: colors.warn, fontSize: font.small, marginTop: -space.sm, marginBottom: space.md },
+  switchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: space.md,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, padding: space.md,
+  },
+  switchLabel: { color: colors.text, fontSize: font.body, fontWeight: '700' },
+  switchHint: { color: colors.textFaint, fontSize: font.small, marginTop: 2 },
   footHint: { color: colors.textFaint, fontSize: font.small, textAlign: 'center', marginTop: space.sm },
 });
