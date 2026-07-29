@@ -60,9 +60,17 @@ jobs:
           EXPO_PUBLIC_API_BASE: https://bluelime.ai
           EXPO_PUBLIC_SUPABASE_URL: https://hyfbzxibqphxavfgjojx.supabase.co
           EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_pWfT5CSzHoNAuL6j_LmJSw_K8FYN0e-
+          # Passed as env, NOT interpolated into the script body: `${{ }}` is a raw
+          # TEXT substitution, so a commit message containing parentheses, quotes or
+          # newlines produced a shell syntax error and failed the publish (it was also
+          # a script-injection vector). Env vars are set by the runner, never parsed.
+          INPUT_MSG: ${{ github.event.inputs.message }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          MSG="${{ github.event.inputs.message }}"
-          if [ -z "$MSG" ]; then MSG="${{ github.event.head_commit.message }}"; fi
+          MSG="${INPUT_MSG:-$COMMIT_MSG}"
+          # EAS wants a short one-liner — take the subject line and cap the length.
+          MSG="$(printf '%s' "$MSG" | head -n 1 | cut -c1-180)"
+          if [ -z "$MSG" ]; then MSG="OTA update"; fi
           # iOS only: --platform=all would also web-export, and Expo Router's
           # web static render evaluates native-only modules (secureStore/supabase)
           # under Node and crashes. This is an iPhone app, so publish iOS.
