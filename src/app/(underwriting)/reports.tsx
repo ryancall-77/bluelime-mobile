@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Button, EmptyState, Loading, VerifiedBadge } from '@/components/ui';
 import { listUnderwritings } from '@/lib/api';
@@ -52,6 +52,14 @@ export default function MyDeals() {
   const router = useRouter();
   const [items, setItems] = useState<UnderwritingListItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    if (!items) return items;
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((it) => (it.property_address ?? '').toLowerCase().includes(q));
+  }, [items, query]);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -75,8 +83,24 @@ export default function MyDeals() {
       <FlatList
         style={styles.list}
         contentContainerStyle={styles.content}
-        data={items}
+        data={filtered ?? []}
         keyExtractor={(d) => d.id}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          items && items.length > 0 ? (
+            <TextInput
+              style={styles.search}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search by address…"
+              placeholderTextColor={colors.textFaint}
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="search"
+              clearButtonMode="while-editing"
+            />
+          ) : null
+        }
         renderItem={({ item }) => (
           <Row
             item={item}
@@ -96,11 +120,15 @@ export default function MyDeals() {
         )}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.blue} />}
         ListEmptyComponent={
-          <EmptyState
-            title="No underwritings yet"
-            body="Run your first deal analysis — enter an address and we'll pull ARV, comps, rehab, and your max offers."
-            action={<Button title="New Underwriting" onPress={() => router.push('/underwriting/new')} />}
-          />
+          query.trim() && items && items.length > 0 ? (
+            <EmptyState title="No matches" body={`No underwritings match “${query.trim()}”.`} />
+          ) : (
+            <EmptyState
+              title="No underwritings yet"
+              body="Run your first deal analysis — enter an address and we'll pull ARV, comps, rehab, and your max offers."
+              action={<Button title="New Underwriting" onPress={() => router.push('/underwriting/new')} />}
+            />
+          )
         }
       />
       <View style={styles.fabWrap} pointerEvents="box-none">
@@ -114,6 +142,11 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.bg },
   list: { flex: 1, backgroundColor: colors.bg },
   content: { padding: space.lg, paddingBottom: 96, flexGrow: 1 },
+  search: {
+    backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: 10,
+    color: colors.text, fontSize: font.body, marginBottom: space.md,
+  },
   card: {
     backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
     padding: space.lg, marginBottom: space.md,
