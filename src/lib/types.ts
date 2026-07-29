@@ -299,5 +299,16 @@ export interface SubmitUnderwritingResponse {
 
 export interface PublishMarketplaceResponse {
   ok: true;
-  buyer_url: string; // public shareable buyer link (send to buyers)
+  buyer_url: string;          // public shareable buyer link (send to buyers)
+  // Publishing also lists the deal on the marketplace (Ryan 2026-07-29).
+  // listing_url is the live /deals/p/<id> page; `listing.skipped` explains a
+  // no-op (e.g. 'no_ask_price' — the buyer link still published).
+  listing_url?: string | null;
+  listing?: {
+    listingId: string | null;
+    created: boolean;
+    becameActive: boolean;
+    skipped?: 'no_ask_price' | 'crm_owned' | 'not_listable';
+    error?: string;
+  } | null;
 }

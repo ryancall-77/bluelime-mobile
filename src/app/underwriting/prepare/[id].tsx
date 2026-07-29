@@ -5,10 +5,19 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Button, Field } from '@/components/ui';
+import { Button, Field, Pill } from '@/components/ui';
 import { prepareAndPublish } from '@/lib/api';
 import { uploadListingPhoto } from '@/lib/upload';
 import { colors, radius, space, font } from '@/lib/theme';
+
+// Deal types offered on the prepare form (mirrors the website's select).
+const DEAL_TYPES = [
+  { value: 'wholesale', label: 'Wholesale' },
+  { value: 'assignment', label: 'Assignment' },
+  { value: 'novation', label: 'Novation' },
+  { value: 'subject_to', label: 'Subject-to' },
+  { value: 'creative', label: 'Creative' },
+];
 
 // Prepare Listing — the "🚀 Push to Marketplace" flow. Upload photos and fill in
 // the property details (mirrors the website prepare page), then publish and hand
@@ -22,6 +31,13 @@ export default function PrepareListing() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
+  // Listing copy — full parity with the rz-crm marketing payload and the website
+  // prepare page. (The CRM's property-spec block is intentionally omitted: it's a
+  // gap-filler for listings with no analysis, and the verified analysis wins here.)
+  const [headline, setHeadline] = useState('');
+  const [description, setDescription] = useState('');
+  const [highlights, setHighlights] = useState('');
+  const [dealType, setDealType] = useState('');
   const [conditionNotes, setConditionNotes] = useState('');
   const [offerPrice, setOfferPrice] = useState('');
   const [offerTerms, setOfferTerms] = useState('');
@@ -30,6 +46,7 @@ export default function PrepareListing() {
   const [agentInstructions, setAgentInstructions] = useState('');
   const [contactUrl, setContactUrl] = useState('');
   const [contactLabel, setContactLabel] = useState('Make an Offer');
+  const [contactTextLine, setContactTextLine] = useState('');
 
   const [busy, setBusy] = useState(false);
 
@@ -90,18 +107,31 @@ export default function PrepareListing() {
         showings: showings.trim(),
         offer: offer.trim(),
         agent_instructions: agentInstructions.trim(),
+        headline: headline.trim(),
+        description: description.trim(),
+        highlights: highlights.trim(),
+        deal_type: dealType,
         contact_url: contactUrl.trim(),
         contact_label: contactLabel.trim() || 'Make an Offer',
+        contact_text_line: contactTextLine.trim(),
       });
+      const shareUrl = res.listing_url || res.buyer_url;
       try {
         await Share.share({
-          message: `${params.address ? params.address + ' — ' : ''}View this deal on Bluelime: ${res.buyer_url}`,
-          url: res.buyer_url,
+          message: `${params.address ? params.address + ' — ' : ''}View this deal on Bluelime: ${shareUrl}`,
+          url: shareUrl,
         });
       } catch { /* user cancelled the share sheet */ }
-      Alert.alert('Live on the Marketplace', 'Your listing is published. The buyer link is ready to share.', [
-        { text: 'Done', onPress: () => router.back() },
-      ]);
+      const listed = !!res.listing_url;
+      Alert.alert(
+        listed ? 'Live on the Marketplace' : 'Buyer link published',
+        listed
+          ? 'Your deal is listed on the Marketplace and matching buyers have been alerted.'
+          : res.listing?.error
+            ? `The buyer link is live, but the Marketplace listing failed: ${res.listing.error}`
+            : 'The buyer link is live. Add an offer price to list it on the Marketplace.',
+        [{ text: 'Done', onPress: () => router.back() }],
+      );
     } catch (e) {
       Alert.alert('Could not publish', e instanceof Error ? e.message : 'Please try again.');
     } finally {
@@ -130,6 +160,47 @@ export default function PrepareListing() {
             <Text style={styles.addPhotoText}>{uploading ? 'Uploading…' : '＋ Add'}</Text>
           </Pressable>
         </View>
+
+        {/* Listing copy — rz-crm marketing parity */}
+        <Text style={styles.section}>Listing copy</Text>
+        <Field
+          label="Headline"
+          value={headline}
+          onChangeText={setHeadline}
+          placeholder="3/2 with new roof — under market, quick close"
+        />
+        <Field
+          label="Description"
+          value={description}
+          onChangeText={setDescription}
+          placeholder="About this deal — the pitch buyers read first…"
+          multiline
+          style={styles.multiline}
+        />
+        <Field
+          label="Highlights (one per line)"
+          value={highlights}
+          onChangeText={setHighlights}
+          placeholder={'New roof (2024)\nNo HOA\nTenant in place'}
+          multiline
+          style={styles.multiline}
+        />
+        <Text style={styles.label}>Deal type</Text>
+        <View style={styles.pillRow}>
+          {DEAL_TYPES.map((dt) => (
+            <Pill
+              key={dt.value}
+              label={dt.label}
+              active={dealType === dt.value}
+              onPress={() => setDealType(dealType === dt.value ? '' : dt.value)}
+            />
+          ))}
+        </View>
+        {dealType === 'assignment' ? (
+          <Text style={styles.assignNote}>
+            Buyers see an “Assignment of Contract — direct buyers only” banner.
+          </Text>
+        ) : null}
 
         {/* Property details */}
         <Text style={styles.section}>Property details</Text>
@@ -200,6 +271,13 @@ export default function PrepareListing() {
           onChangeText={setContactLabel}
           placeholder="Make an Offer"
         />
+        <Field
+          label="Call / text line"
+          value={contactTextLine}
+          onChangeText={setContactTextLine}
+          placeholder="(904) 555-0123"
+          keyboardType="phone-pad"
+        />
 
         <Button
           title="🚀 Publish to Marketplace"
@@ -236,5 +314,8 @@ const styles = StyleSheet.create({
   },
   addPhotoText: { color: colors.textDim, fontSize: font.small, fontWeight: '700' },
   multiline: { minHeight: 76, textAlignVertical: 'top', paddingTop: 10 },
+  label: { color: colors.textDim, fontSize: font.small, fontWeight: '600', marginBottom: space.xs },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.md },
+  assignNote: { color: colors.warn, fontSize: font.small, marginTop: -space.sm, marginBottom: space.md },
   footHint: { color: colors.textFaint, fontSize: font.small, textAlign: 'center', marginTop: space.sm },
 });

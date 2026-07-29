@@ -172,6 +172,14 @@ export interface PrepareListingInput {
   showings?: string;
   offer?: string;
   agent_instructions?: string;
+  // rz-crm marketing parity — same listing copy the CRM feed and the website
+  // prepare page supply, so all three surfaces stay consistent.
+  headline?: string;
+  description?: string;
+  highlights?: string;
+  deal_type?: string;
+  contact_phone?: string;
+  contact_text_line?: string;
   contact_url?: string;
   contact_label?: string;
 }

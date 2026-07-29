@@ -24,7 +24,10 @@ function statusChip(status: UnderwritingStatus): { label: string; color: string 
   }
 }
 
-const READY_STATUSES = ['pending_review', 'under_review', 'approved', 'complete', 'pre_estimate_complete'];
+// Only a finished, verified report can be listed — mirrors the server's publish
+// gate (buildSnapshotFromAnalysis). A pre-estimate is deliberately excluded: it
+// carries no verified report, so it can never go on the marketplace.
+const READY_STATUSES = ['pending_review', 'under_review', 'approved'];
 
 function Row({ item, onPress, onPush }: { item: UnderwritingListItem; onPress: () => void; onPush: () => void }) {
   const chip = statusChip(item.status);
