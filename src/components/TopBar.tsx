@@ -17,7 +17,9 @@ export function TopBar({ active }: { active: Mode }) {
 
   const go = (mode: Mode) => {
     if (mode === active) return;
-    router.replace(mode === 'marketplace' ? '/(marketplace)' : '/(underwriting)');
+    // (underwriting) is a route group with no index screen, so navigating to the
+    // bare group path is an unmatched route — target its anchor screen (reports).
+    router.replace(mode === 'marketplace' ? '/(marketplace)' : '/(underwriting)/reports');
   };
 
   return (
