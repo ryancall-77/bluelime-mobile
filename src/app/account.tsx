@@ -3,9 +3,9 @@ import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View }
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { Card, Button, Loading } from '@/components/ui';
+import { Card, Button, Field, Loading } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
-import { getProfile, deleteAccount } from '@/lib/api';
+import { getProfile, deleteAccount, patchProfile, putBuyBox } from '@/lib/api';
 import type { BuyerProfile, BuyBox } from '@/lib/types';
 import { colors, font, radius, space } from '@/lib/theme';
 import { SUPPORT_EMAIL, TERMS_URL, PRIVACY_URL } from '@/lib/config';
@@ -18,8 +18,13 @@ export default function Account() {
   const [profile, setProfile] = useState<BuyerProfile | null>(null);
   const [box, setBox] = useState<BuyBox | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [pushOn, setPushOn] = useState(true); // local pref; buy-box alert_mode is the server-side switch
+  const [pushOn, setPushOn] = useState(true); // mirrors buy-box alert_mode (the server-side switch)
+  const [pushSaving, setPushSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Editable profile fields (name / phone) — persisted via patchProfile.
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -27,6 +32,8 @@ export default function Account() {
       setProfile(res.profile);
       setBox(res.buy_box);
       setPushOn((res.buy_box?.alert_mode ?? 'instant') !== 'off');
+      setName(res.profile?.display_name ?? '');
+      setPhone(res.profile?.phone ?? '');
     } catch {
       /* keep prior */
     } finally {
@@ -35,6 +42,42 @@ export default function Account() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Persist name/phone. Trimmed; empty string clears the field server-side.
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      await patchProfile({ display_name: name.trim(), phone: phone.trim() });
+      setProfile((p) => (p ? { ...p, display_name: name.trim() || null, phone: phone.trim() || null } : p));
+      Alert.alert('Saved', 'Your profile has been updated.');
+    } catch (e) {
+      Alert.alert('Could not save', e instanceof Error ? e.message : 'Try again later.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  // The "Deal alerts" switch is the buy-box alert_mode (instant ↔ off), persisted
+  // server-side. Optimistic; reverts on failure. No buy-box → route to set one up.
+  const toggleAlerts = async (on: boolean) => {
+    if (!box) {
+      router.push('/buybox');
+      return;
+    }
+    const prev = pushOn;
+    setPushOn(on);
+    setPushSaving(true);
+    try {
+      const next: BuyBox = { ...box, alert_mode: on ? 'instant' : 'off' };
+      await putBuyBox(next);
+      setBox(next);
+    } catch (e) {
+      setPushOn(prev); // revert
+      Alert.alert('Could not update alerts', e instanceof Error ? e.message : 'Try again later.');
+    } finally {
+      setPushSaving(false);
+    }
+  };
 
   const confirmDelete = () => {
     Alert.alert(
@@ -68,7 +111,14 @@ export default function Account() {
       <Card style={{ marginBottom: space.lg }}>
         <Text style={styles.label}>Signed in as</Text>
         <Text style={styles.value}>{profile?.email ?? email ?? '—'}</Text>
-        {profile?.display_name ? <Text style={styles.sub}>{profile.display_name}</Text> : null}
+      </Card>
+
+      <SectionTitle>Profile</SectionTitle>
+      <Card style={{ marginBottom: space.lg }}>
+        <Field label="Name" value={name} onChangeText={setName} placeholder="Your name" autoCapitalize="words" />
+        <Field label="Phone" value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" keyboardType="phone-pad" />
+        <Text style={styles.note}>Sellers see your name on offers and messages. Phone is used for deal-alert texts.</Text>
+        <Button title="Save profile" onPress={saveProfile} loading={savingProfile} variant="outline" style={{ marginTop: space.md }} />
       </Card>
 
       <SectionTitle>Buy-box</SectionTitle>
@@ -95,13 +145,16 @@ export default function Account() {
           </View>
           <Switch
             value={pushOn}
-            onValueChange={setPushOn}
+            onValueChange={toggleAlerts}
+            disabled={pushSaving}
             trackColor={{ true: colors.blue, false: colors.border }}
             thumbColor={colors.white}
           />
         </View>
         <Text style={styles.note}>
-          Toggle the alert mode (instant / digest / off) in your buy-box to control this server-side.
+          {box
+            ? 'Turns your buy-box alerts on (instant) or off. For a daily digest instead, choose the mode in your buy-box.'
+            : 'Set up a buy-box first — then this controls whether matched deals push to your phone.'}
         </Text>
       </Card>
 
