@@ -51,6 +51,15 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Publish OTA update
+        # EXPO_PUBLIC_* vars are inlined into the JS bundle AT PUBLISH TIME. eas.json's
+        # build-profile `env` blocks only apply to `eas build`, NOT `eas update` — so
+        # without these here, every OTA shipped a bundle with an empty Supabase config
+        # and the app showed "Supabase isn't configured". Keep these in sync with the
+        # `env` blocks in eas.json (all client-safe publishable values; no secrets).
+        env:
+          EXPO_PUBLIC_API_BASE: https://bluelime.ai
+          EXPO_PUBLIC_SUPABASE_URL: https://hyfbzxibqphxavfgjojx.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_pWfT5CSzHoNAuL6j_LmJSw_K8FYN0e-
         run: |
           MSG="${{ github.event.inputs.message }}"
           if [ -z "$MSG" ]; then MSG="${{ github.event.head_commit.message }}"; fi
