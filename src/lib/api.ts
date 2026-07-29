@@ -160,6 +160,33 @@ export const postToMarketplace = async (analysisId: string): Promise<PublishMark
   return send<PublishMarketplaceResponse>(`/api/underwriting/buyer-publish/${id}`, 'POST');
 };
 
+// ── Prepare a listing for the Marketplace (photos + property details) ──
+// The full prep payload posted to buyer-generate. Mirrors the website prepare
+// page. Showings / Offer / Agent instructions are the split successor of the
+// legacy offer_process field (Ryan 2026-07-29).
+export interface PrepareListingInput {
+  photo_urls?: string[];
+  condition_notes?: string;
+  offer_price_cents?: number | null;
+  offer_terms?: string;
+  showings?: string;
+  offer?: string;
+  agent_instructions?: string;
+  contact_url?: string;
+  contact_label?: string;
+}
+
+// Generate the buyer report from the prepared inputs, then publish to the
+// Marketplace and hand back the public buyer link to share.
+export const prepareAndPublish = async (
+  analysisId: string,
+  input: PrepareListingInput,
+): Promise<PublishMarketplaceResponse> => {
+  const id = encodeURIComponent(analysisId);
+  await send<{ ok: true; buyer_url?: string }>(`/api/underwriting/buyer-generate/${id}`, 'POST', input);
+  return send<PublishMarketplaceResponse>(`/api/underwriting/buyer-publish/${id}`, 'POST');
+};
+
 // The public report URL for an analysis (owner-facing full report) — loaded in a WebView.
 export const reportUrl = (accessToken: string) => `${API_BASE}/underwriting/${encodeURIComponent(accessToken)}`;
 

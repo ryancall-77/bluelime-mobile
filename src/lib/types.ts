@@ -32,7 +32,11 @@ export interface DealMarketing {
   description?: string | null;
   highlights?: string | null;
   offer_terms?: string | null;
-  offer_process?: string | null;
+  offer_process?: string | null;       // LEGACY combined field (fallback)
+  // Split successor of offer_process (Ryan 2026-07-29) — three titled sections.
+  showings?: string | null;
+  offer?: string | null;
+  agent_instructions?: string | null;
   deal_type?: string | null;
   buyer_report_url?: string | null;
   contact?: { phone?: string | null; text_line?: string | null } | null;

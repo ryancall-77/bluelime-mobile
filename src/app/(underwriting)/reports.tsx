@@ -24,10 +24,13 @@ function statusChip(status: UnderwritingStatus): { label: string; color: string 
   }
 }
 
-function Row({ item, onPress }: { item: UnderwritingListItem; onPress: () => void }) {
+const READY_STATUSES = ['pending_review', 'under_review', 'approved', 'complete', 'pre_estimate_complete'];
+
+function Row({ item, onPress, onPush }: { item: UnderwritingListItem; onPress: () => void; onPush: () => void }) {
   const chip = statusChip(item.status);
   const cash = item.final_cash_mao_cents ?? item.cash_mao_cents;
   const nov = item.final_novation_mao_cents ?? item.novation_mao_cents;
+  const ready = READY_STATUSES.includes(item.status);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}>
       <View style={styles.rowTop}>
@@ -43,6 +46,15 @@ function Row({ item, onPress }: { item: UnderwritingListItem; onPress: () => voi
       </View>
       {item.buyer_share_enabled ? (
         <View style={styles.posted}><VerifiedBadge small /><Text style={styles.postedText}>Posted to Marketplace</Text></View>
+      ) : ready ? (
+        <Pressable
+          onPress={onPush}
+          style={({ pressed }) => [styles.pushBtn, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Push to Marketplace"
+        >
+          <Text style={styles.pushBtnText}>🚀 Push to Marketplace</Text>
+        </Pressable>
       ) : null}
     </Pressable>
   );
@@ -88,17 +100,20 @@ export default function MyDeals() {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           items && items.length > 0 ? (
-            <TextInput
-              style={styles.search}
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search by address…"
-              placeholderTextColor={colors.textFaint}
-              autoCorrect={false}
-              autoCapitalize="none"
-              returnKeyType="search"
-              clearButtonMode="while-editing"
-            />
+            <View>
+              <TextInput
+                style={styles.search}
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search by address…"
+                placeholderTextColor={colors.textFaint}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+              />
+              <Text style={styles.legend}>🚀 Push to Marketplace — publish this deal so buyers can see it.</Text>
+            </View>
           ) : null
         }
         renderItem={({ item }) => (
@@ -114,6 +129,12 @@ export default function MyDeals() {
                   status: item.status,
                   posted: item.buyer_share_enabled ? '1' : '0',
                 },
+              })
+            }
+            onPush={() =>
+              router.push({
+                pathname: '/underwriting/prepare/[id]',
+                params: { id: item.id, address: item.property_address ?? '' },
               })
             }
           />
@@ -145,8 +166,14 @@ const styles = StyleSheet.create({
   search: {
     backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border,
     borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: 10,
-    color: colors.text, fontSize: font.body, marginBottom: space.md,
+    color: colors.text, fontSize: font.body, marginBottom: space.sm,
   },
+  legend: { color: colors.textFaint, fontSize: font.small, marginBottom: space.md },
+  pushBtn: {
+    marginTop: space.md, borderWidth: 1, borderColor: colors.blue, borderRadius: radius.md,
+    paddingVertical: 9, alignItems: 'center', backgroundColor: 'rgba(32,138,239,0.10)',
+  },
+  pushBtnText: { color: colors.blue, fontSize: font.small, fontWeight: '800' },
   card: {
     backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
     padding: space.lg, marginBottom: space.md,

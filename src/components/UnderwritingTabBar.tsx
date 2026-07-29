@@ -1,14 +1,30 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { colors, font, space } from '@/lib/theme';
+
+// Minimal shape of the tab-bar props we use (from @react-navigation/bottom-tabs,
+// a transitive dep of expo-router — typed locally so we don't depend on it directly).
+type TabRoute = { key: string; name: string; params?: object };
+type TabBarProps = {
+  state: { index: number; routes: TabRoute[] };
+  descriptors: Record<string, {
+    options: {
+      title?: string;
+      tabBarIcon?: (p: { focused: boolean; color: ColorValue; size: number }) => React.ReactNode;
+    };
+  }>;
+  navigation: {
+    emit: (e: { type: 'tabPress'; target: string; canPreventDefault: true }) => { defaultPrevented: boolean };
+    navigate: (name: string, params?: object) => void;
+  };
+};
 
 // Custom bottom bar for the (underwriting) group. Renders the tabs as a
 // left-to-right pipeline — Underwrite › Reports › Listings › Buyers — with a
 // chevron between each step so the flow reads as a sequence, not four peers.
 // Mirrors the default bar's colors/behavior (active = blue, inactive = faint).
-export function UnderwritingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export function UnderwritingTabBar({ state, descriptors, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
 
   return (
