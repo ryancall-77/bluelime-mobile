@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView,
   Share, StyleSheet, Switch, Text, View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Button, Field, Pill } from '@/components/ui';
-import { prepareAndPublish } from '@/lib/api';
+import { Button, Field, Loading, Pill } from '@/components/ui';
+import { getPreparedListing, prepareAndPublish } from '@/lib/api';
 import { uploadListingPhoto } from '@/lib/upload';
 import { colors, radius, space, font } from '@/lib/theme';
 
@@ -52,6 +52,44 @@ export default function PrepareListing() {
   const [notifyBuyers, setNotifyBuyers] = useState(true);
 
   const [busy, setBusy] = useState(false);
+  // Seed from what was prepared last time. Publishing writes a FRESH snapshot, so
+  // without this an edit-and-republish would blank the listing copy and wipe the
+  // marketplace listing's marketing.
+  const [seeding, setSeeding] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getPreparedListing(id);
+        const s = res.buyer_report;
+        if (cancelled || !s) return;
+        const str = (v: unknown) => (typeof v === 'string' ? v : '');
+        const cents = Number(s.offer_price_cents);
+        if (Number.isFinite(cents) && cents > 0) setOfferPrice(String(cents / 100));
+        setHeadline(str(s.headline));
+        setDescription(str(s.description));
+        setHighlights(str(s.highlights));
+        setDealType(str(s.deal_type));
+        setConditionNotes(str(s.condition_notes));
+        setOfferTerms(str(s.offer_terms));
+        setShowings(str(s.showings));
+        setOffer(str(s.offer));
+        setAgentInstructions(str(s.agent_instructions));
+        setContactUrl(str(s.contact_url));
+        if (str(s.contact_label)) setContactLabel(str(s.contact_label));
+        setContactTextLine(str(s.contact_text_line));
+        if (Array.isArray(s.photo_urls)) {
+          setPhotos((s.photo_urls as unknown[]).filter((p): p is string => typeof p === 'string'));
+        }
+      } catch {
+        // Nothing prepared yet (or offline) — start from an empty form.
+      } finally {
+        if (!cancelled) setSeeding(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
 
   const offerPriceCents = (() => {
     const n = parseFloat(offerPrice.replace(/[^0-9.]/g, ''));
@@ -144,6 +182,8 @@ export default function PrepareListing() {
       setBusy(false);
     }
   };
+
+  if (seeding) return <Loading label="Loading listing details…" />;
 
   return (
     <KeyboardAvoidingView style={styles.wrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

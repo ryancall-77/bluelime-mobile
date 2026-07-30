@@ -152,13 +152,21 @@ export const listUnderwritings = () =>
 export const submitUnderwriting = (body: SubmitUnderwritingBody) =>
   send<SubmitUnderwritingResponse>('/api/underwriting/submit', 'POST', { ...body, source: 'mobile_app' });
 
-// Post a completed underwriting to the Bluelime Marketplace and get the public
-// shareable buyer link. Two-step: generate the buyer snapshot, then publish it.
-export const postToMarketplace = async (analysisId: string): Promise<PublishMarketplaceResponse> => {
-  const id = encodeURIComponent(analysisId);
-  await send<{ ok: true; buyer_url?: string }>(`/api/underwriting/buyer-generate/${id}`, 'POST', {});
-  return send<PublishMarketplaceResponse>(`/api/underwriting/buyer-publish/${id}`, 'POST');
-};
+// NOTE: there is deliberately no one-tap "postToMarketplace(id)" any more. It
+// posted an EMPTY payload to buyer-generate, which (a) wrote a blank snapshot —
+// erasing any prepared listing copy and blanking the listing's marketing — and
+// (b) left offer_price_cents null, so the server could never create a listing
+// ('no_ask_price'). Publishing always goes through the prepare screen now.
+
+// GET /api/underwriting/buyer-report/[id] → the previously prepared snapshot, so
+// the prepare form seeds with what was entered last time instead of wiping it.
+export const getPreparedListing = (analysisId: string) =>
+  get<{
+    ok: true;
+    property_address: string | null;
+    published: boolean;
+    buyer_report: Record<string, unknown> | null;
+  }>(`/api/underwriting/buyer-report/${encodeURIComponent(analysisId)}`);
 
 // ── Prepare a listing for the Marketplace (photos + property details) ──
 // The full prep payload posted to buyer-generate. Mirrors the website prepare

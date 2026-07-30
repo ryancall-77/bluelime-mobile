@@ -1,62 +1,59 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Share, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import * as WebBrowser from 'expo-web-browser';
 import { Button } from '@/components/ui';
-import { postToMarketplace, reportUrl } from '@/lib/api';
+import { reportUrl } from '@/lib/api';
 import { API_BASE } from '@/lib/config';
 import { colors, space, font } from '@/lib/theme';
 
 // Underwriting detail — the owner's full report in a WebView (the canonical
 // /underwriting/<access_token> page, which itself renders live progress while the
-// run is in flight, then the full report), plus a one-tap "Post to Bluelime
-// Marketplace" that publishes and hands back the public buyer link to share.
+// run is in flight, then the full report), plus "Push to Marketplace" which opens
+// the NATIVE prepare screen.
+//
+// Listing always goes through the prepare screen (Ryan 2026-07-29). Two things
+// this replaced:
+//  • The report page's own "Push to Marketplace" CTA is a link to the WEBSITE
+//    prepare page, which isn't mobile-optimized — onNav intercepts it and pushes
+//    the native screen instead.
+//  • The old one-tap publish here posted an empty payload, which wiped prepared
+//    listing copy and could never actually create a listing (no ask price).
 
-const READY = ['pending_review', 'under_review', 'approved', 'complete', 'pre_estimate_complete'];
+// Statuses whose report can be listed — matches the server publish gate
+// (buildSnapshotFromAnalysis). A pre-estimate carries no verified report.
+const LISTABLE = ['pending_review', 'under_review', 'approved'];
+
+// The website prepare URL the in-report CTA points at: /buyer-reports/<id>/prepare
+const WEB_PREPARE_RE = /\/buyer-reports\/([0-9a-fA-F-]{36})\/prepare/;
 
 export default function UnderwritingDetail() {
   const params = useLocalSearchParams<{ id: string; token?: string; address?: string; status?: string; posted?: string }>();
   const id = String(params.id);
   const token = params.token ? String(params.token) : '';
   const status = params.status ? String(params.status) : '';
-  const [posted, setPosted] = useState(params.posted === '1');
-  const [busy, setBusy] = useState(false);
+  const router = useRouter();
+  const posted = params.posted === '1';
   const [loading, setLoading] = useState(true);
 
-  const isReady = READY.includes(status);
+  const isListable = LISTABLE.includes(status);
 
-  const share = async (buyerUrl: string) => {
-    try {
-      await Share.share({
-        message: `${params.address ? params.address + ' — ' : ''}View this deal on Bluelime: ${buyerUrl}`,
-        url: buyerUrl,
-      });
-    } catch { /* user cancelled */ }
-  };
-
-  const onPost = async () => {
-    if (!isReady) {
-      Alert.alert('Not ready yet', 'You can post to the Marketplace once the underwriting has finished running.');
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await postToMarketplace(id);
-      setPosted(true);
-      await share(res.buyer_url);
-    } catch (e) {
-      Alert.alert('Could not post', e instanceof Error ? e.message : 'Please try again.');
-    } finally {
-      setBusy(false);
-    }
-  };
+  const openPrepare = (analysisId: string = id) =>
+    router.push({
+      pathname: '/underwriting/prepare/[id]',
+      params: { id: analysisId, address: params.address ?? '' },
+    });
 
   const uri = token ? reportUrl(token) : `${API_BASE}/underwriting`;
 
-  // Let comp source links / external links open in the in-app browser rather than
-  // hijacking the report WebView.
+  // Keep the report in the WebView; send real external links (a comp's Zillow
+  // source, etc.) to the in-app browser. The report's own "Push to Marketplace"
+  // CTA targets the website prepare page — intercept it and open the native
+  // prepare screen, which is built for the phone.
   const onNav = (req: { url: string }) => {
+    const prep = req.url.match(WEB_PREPARE_RE);
+    if (prep) { openPrepare(prep[1]); return false; }
     if (req.url === uri || req.url.startsWith(`${API_BASE}/underwriting/`)) return true;
     if (/^(data|blob|about):/.test(req.url)) return true;
     if (/^https?:/.test(req.url)) { WebBrowser.openBrowserAsync(req.url).catch(() => {}); return false; }
@@ -81,20 +78,20 @@ export default function UnderwritingDetail() {
         <View style={styles.loading} pointerEvents="none"><ActivityIndicator color={colors.blue} /></View>
       ) : null}
 
-      <View style={styles.bar}>
-        {posted ? (
-          <Button title="Share buyer link" variant="accent" loading={busy} onPress={onPost} />
-        ) : (
-          <Button title="Post to Bluelime Marketplace" loading={busy} onPress={onPost} />
-        )}
-        <Text style={styles.hint}>
-          {posted
-            ? 'Live on the Marketplace — tap to re-share the buyer link.'
-            : isReady
-              ? 'Publishes a buyer-facing report and gives you a link to text your buyers.'
-              : 'Available once the underwriting finishes.'}
-        </Text>
-      </View>
+      {isListable ? (
+        <View style={styles.bar}>
+          <Button
+            title={posted ? '🚀 Update Marketplace listing' : '🚀 Push to Marketplace'}
+            variant={posted ? 'accent' : 'primary'}
+            onPress={() => openPrepare()}
+          />
+          <Text style={styles.hint}>
+            {posted
+              ? 'Live on the Marketplace — edit the photos and listing details.'
+              : 'Add photos and listing details, then publish and share the buyer link.'}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
