@@ -4,6 +4,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as WebBrowser from 'expo-web-browser';
 import { API_BASE } from '@/lib/config';
 import { colors } from '@/lib/theme';
+import { PhotoViewer, type PhotoViewerState } from './PhotoViewer';
 
 // Renders THE canonical web underwriting report (comps w/ multiple photos +
 // click-to-enlarge, adjustments, condition grid, expand-all) inline, by loading
@@ -44,15 +45,31 @@ export function EmbeddedReport({ dealId }: { dealId: string }) {
   const uri = `${API_BASE}/embed/deal-report/${encodeURIComponent(dealId)}`;
   const [height, setHeight] = useState(560);
   const [loading, setLoading] = useState(true);
+  const [viewer, setViewer] = useState<PhotoViewerState | null>(null);
   const settled = useRef(false);
 
+  // Two kinds of message: a bare NUMBER (content height, see HEIGHT_JS) and a JSON
+  // envelope. The report posts {type:'bluelime:photos'} instead of opening its own
+  // lightbox in the app — a `position: fixed` overlay is unusable in this WebView
+  // because the viewport is the whole document height, so the image landed far
+  // off-screen and only the black backdrop showed.
   const onMessage = (e: WebViewMessageEvent) => {
-    const n = Number(e.nativeEvent.data);
-    // Ignore garbage / zero-height frames; only grow-or-set to real content.
+    const raw = e.nativeEvent.data;
+    const n = Number(raw);
     if (Number.isFinite(n) && n > 120) {
       settled.current = true;
       setHeight(Math.ceil(n));
+      return;
     }
+    try {
+      const msg = JSON.parse(raw) as { type?: string; urls?: unknown; index?: unknown };
+      if (msg?.type === 'bluelime:photos' && Array.isArray(msg.urls)) {
+        const urls = msg.urls.filter((u): u is string => typeof u === 'string');
+        if (urls.length) {
+          setViewer({ urls, index: Number.isFinite(Number(msg.index)) ? Number(msg.index) : 0 });
+        }
+      }
+    } catch { /* not JSON — nothing else to handle */ }
   };
 
   // Keep the report itself in the WebView; send any real navigation (a comp's
@@ -92,6 +109,7 @@ export function EmbeddedReport({ dealId }: { dealId: string }) {
           <ActivityIndicator color={colors.blue} />
         </View>
       )}
+      <PhotoViewer state={viewer} onClose={() => setViewer(null)} />
     </View>
   );
 }

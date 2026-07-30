@@ -162,6 +162,13 @@ export interface ListingCard {
   listing_state?: string;
   photo: string | null;
   profit_cents: number | null;
+  // Verified numbers + specs the deal card renders. Same names as DealDetail so
+  // DealCard reads one shape on the feed and on Favorites.
+  arv_cents?: number | null;
+  rehab_cents?: number | null;
+  beds?: number | null;
+  baths?: number | null;
+  sqft?: number | null;
 }
 
 export interface OfferRow {

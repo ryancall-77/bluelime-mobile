@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { WebView } from 'react-native-webview';
+import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as WebBrowser from 'expo-web-browser';
 import { Button } from '@/components/ui';
+import { PhotoViewer, type PhotoViewerState } from '@/components/PhotoViewer';
 import { reportUrl } from '@/lib/api';
 import { API_BASE } from '@/lib/config';
 import { colors, space, font } from '@/lib/theme';
@@ -36,6 +37,21 @@ export default function UnderwritingDetail() {
   const router = useRouter();
   const posted = params.posted === '1';
   const [loading, setLoading] = useState(true);
+  const [viewer, setViewer] = useState<PhotoViewerState | null>(null);
+
+  // The report hands photo taps to the app instead of opening its own lightbox,
+  // so we show a native viewer with pinch-to-zoom.
+  const onMessage = (e: WebViewMessageEvent) => {
+    try {
+      const msg = JSON.parse(e.nativeEvent.data) as { type?: string; urls?: unknown; index?: unknown };
+      if (msg?.type === 'bluelime:photos' && Array.isArray(msg.urls)) {
+        const urls = msg.urls.filter((u): u is string => typeof u === 'string');
+        if (urls.length) {
+          setViewer({ urls, index: Number.isFinite(Number(msg.index)) ? Number(msg.index) : 0 });
+        }
+      }
+    } catch { /* not a message we handle */ }
+  };
 
   const isListable = LISTABLE.includes(status);
 
@@ -67,6 +83,7 @@ export default function UnderwritingDetail() {
           source={{ uri }}
           originWhitelist={['*']}
           onShouldStartLoadWithRequest={onNav}
+          onMessage={onMessage}
           onLoadEnd={() => setLoading(false)}
           style={styles.web}
           containerStyle={styles.web}
@@ -77,6 +94,7 @@ export default function UnderwritingDetail() {
       {loading && token ? (
         <View style={styles.loading} pointerEvents="none"><ActivityIndicator color={colors.blue} /></View>
       ) : null}
+      <PhotoViewer state={viewer} onClose={() => setViewer(null)} />
 
       {isListable ? (
         <View style={styles.bar}>

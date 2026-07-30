@@ -37,10 +37,9 @@ export default function Watchlist() {
       data={saved}
       keyExtractor={(d) => d.id}
       renderItem={({ item }) => (
-        <DealCard
-          deal={{ id: item.id, address: item.address, city: item.city, state: item.state, ask_cents: item.ask_cents, profit_cents: item.profit_cents, photo: item.photo }}
-          onPress={() => router.push(`/deal/${item.id}`)}
-        />
+        // Pass the whole card through — cherry-picking fields here is what left
+        // ARV/Rehab (and the bed/bath/sqft line) blank on this screen.
+        <DealCard deal={item} onPress={() => router.push(`/deal/${item.id}`)} />
       )}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.blue} />}
       ListEmptyComponent={
