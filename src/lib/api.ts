@@ -65,10 +65,15 @@ export const patchProfile = (patch: { display_name?: string; phone?: string; str
 
 // ───────────────────────── Save / watchlist ─────────────────────────
 
-// POST /api/marketplace/listings/[id]/save → toggle/add to watchlist.
+// Add to / remove from the watchlist. The server keys the action off the HTTP
+// METHOD — POST upserts the save, DELETE removes it — and ignores the body
+// entirely. Sending POST with {saved:false} therefore RE-SAVED the listing and
+// returned saved:true, so un-favouriting was impossible: the star dimmed, then
+// popped straight back (Ryan 2026-07-30). `saved` here is the DESIRED state.
 export const saveListing = (id: string, saved: boolean) =>
   send<{ ok: true; saved: boolean }>(
-    `/api/marketplace/listings/${encodeURIComponent(id)}/save`, 'POST', { saved },
+    `/api/marketplace/listings/${encodeURIComponent(id)}/save`,
+    saved ? 'POST' : 'DELETE',
   );
 
 // ───────────────────────── Messaging (inquiry thread) ─────────────────────────
