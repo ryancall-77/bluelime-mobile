@@ -60,6 +60,15 @@ jobs:
         env:
           ASC_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
         run: |
+          # ascAppId is injected here, NOT stored in eas.json: eas.json feeds the
+          # expo-updates fingerprint, so adding a field there changes the runtime
+          # version and silently orphans every installed app from OTA updates.
+          node -e '
+            const fs=require("fs"), p="eas.json";
+            const j=JSON.parse(fs.readFileSync(p,"utf8"));
+            j.submit.production.ios.ascAppId="6790447988";
+            fs.writeFileSync(p,JSON.stringify(j,null,2));
+          '
           if [ -n "$ASC_KEY_P8" ]; then
             mkdir -p "$HOME/asc"
             printf '%s' "$ASC_KEY_P8" > "$HOME/asc/AuthKey.p8"
