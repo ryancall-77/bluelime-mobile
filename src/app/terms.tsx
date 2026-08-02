@@ -13,8 +13,8 @@ export default function Terms() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.h1}>Terms & EULA</Text>
         <Text style={styles.p}>
-          Bluelime Deals connects real-estate buyers with off-market deals. All property numbers
-          (ARV, rehab, profit) are Bluelime-verified estimates, not guarantees. Do your own diligence
+          RealtyZoom Deals connects real-estate buyers with off-market deals. All property numbers
+          (ARV, rehab, profit) are RealtyZoom-verified estimates, not guarantees. Do your own diligence
           before making an offer.
         </Text>
         <Text style={styles.h2}>Community rules (zero tolerance)</Text>

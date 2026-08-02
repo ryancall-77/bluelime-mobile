@@ -7,7 +7,7 @@ import type { UnderwritingListItem } from '@/lib/types';
 import { fmtUsdShort } from '@/lib/format';
 import { colors, radius, space, font } from '@/lib/theme';
 
-// Listings — the deals you've published to the Bluelime Marketplace (a filtered
+// Listings — the deals you've published to the RealtyZoom Marketplace (a filtered
 // view of your underwritings where buyer sharing is enabled). Tap to open the
 // report + re-share the buyer link.
 export default function Listings() {
@@ -70,7 +70,7 @@ export default function Listings() {
         ListEmptyComponent={
           <EmptyState
             title="No live listings yet"
-            body="Run an underwriting, then tap “Post to Bluelime Marketplace” to publish it and get a buyer link to send out. Your published deals show here."
+            body="Run an underwriting, then tap “Post to RealtyZoom Marketplace” to publish it and get a buyer link to send out. Your published deals show here."
             action={<Button title="Run an underwriting" onPress={() => router.push('/(underwriting)/submit')} />}
           />
         }

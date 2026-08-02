@@ -2,7 +2,7 @@
 // time by Expo). Copy .env.example → .env and fill these in for local dev; set
 // them as EAS build secrets / eas.json "env" for real builds.
 //
-//  EXPO_PUBLIC_API_BASE      → the Bluelime backend (Next.js on Vercel).
+//  EXPO_PUBLIC_API_BASE      → the RealtyZoom backend (Next.js on Vercel).
 //  EXPO_PUBLIC_SUPABASE_URL  → the SAME Supabase project buyers sign up against
 //                              on the web (one shared account, Ryan's R-decision).
 //  EXPO_PUBLIC_SUPABASE_ANON_KEY → that project's anon/public key.

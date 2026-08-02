@@ -43,7 +43,7 @@ function RootNavigator() {
     });
   }, [signedIn, router]);
 
-  if (!ready) return <Loading label="Starting Bluelime Deals…" />;
+  if (!ready) return <Loading label="Starting RealtyZoom Deals…" />;
 
   return (
     <Stack

@@ -9,7 +9,7 @@ import { colors, radius, space, font } from '@/lib/theme';
 
 // "My Deals" — the supply-side surface. Lists this account's underwritings with
 // status + the three MAOs, and a button to run a new one. Tapping a row opens the
-// full report (WebView) with the "Post to Bluelime Marketplace" action.
+// full report (WebView) with the "Post to RealtyZoom Marketplace" action.
 
 function statusChip(status: UnderwritingStatus): { label: string; color: string } {
   switch (status) {

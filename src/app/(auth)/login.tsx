@@ -33,7 +33,7 @@ export default function Login() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.hero}>
-            <Text style={styles.brand}>Bluelime <Text style={{ color: colors.lime }}>Deals</Text></Text>
+            <Text style={styles.brand}>RealtyZoom <Text style={{ color: colors.lime }}>Deals</Text></Text>
             <Text style={styles.tagline}>Verified off-market deals. Real numbers up front.</Text>
             <View style={styles.headsUp}>
               <Text style={styles.headsUpText}>
@@ -72,7 +72,7 @@ export default function Login() {
           <Button title="Log in" onPress={onSubmit} loading={busy} disabled={!configured} />
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>New to Bluelime? </Text>
+            <Text style={styles.footerText}>New to RealtyZoom? </Text>
             <Link href="/(auth)/signup" style={styles.link}>Create an account</Link>
           </View>
         </ScrollView>

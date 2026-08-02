@@ -1,4 +1,4 @@
-// Bluelime Deals brand tokens. "Bluelime" = a blue base with a lime accent for
+// RealtyZoom Deals brand tokens. "RealtyZoom" = a blue base with a lime accent for
 // the verified / profit highlights. Screens import these instead of hardcoding
 // hex. The app runs a single dark theme (matches the marketing site).
 

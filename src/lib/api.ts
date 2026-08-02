@@ -1,4 +1,4 @@
-// Bluelime Deals API layer. Every authenticated call carries
+// RealtyZoom Deals API layer. Every authenticated call carries
 // `Authorization: Bearer <supabase access_token>` — the SAME token the web app
 // uses (one shared account). Base URL from EXPO_PUBLIC_API_BASE.
 //
