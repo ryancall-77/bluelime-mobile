@@ -1,0 +1,79 @@
+name: EAS Submit (TestFlight)
+
+# Submits an already-finished EAS build to TestFlight.
+#
+# Why this exists: `eas submit` can't be run from a local Claude Code session
+# (the sandbox classifier blocks it), same as `eas build` — which is what
+# eas-build.yml already works around. Without this, every TestFlight push had to
+# be done by hand. Manual dispatch only; nothing here fires on push.
+#
+# Uses the ascAppId + ASC API key already configured in eas.json's
+# submit.production.ios, so no prompts. TestFlight internal testing needs no
+# App Store review — do NOT click "Add for Review" on the version page, that's
+# a public release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: 'EAS build id to submit (blank = most recent finished build)'
+        required: false
+        type: string
+      platform:
+        description: 'Platform'
+        required: true
+        default: 'ios'
+        type: choice
+        options:
+          - ios
+          - android
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      # The ASC API key lives at a Windows path in eas.json, which doesn't exist
+      # on the runner. Materialise it from a repo secret and point eas.json at it.
+      - name: Write App Store Connect API key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          if [ -z "$ASC_KEY_P8" ]; then
+            echo "::error::ASC_API_KEY_P8 repo secret is not set — add the AuthKey_*.p8 contents to it."
+            exit 1
+          fi
+          mkdir -p "$HOME/asc"
+          printf '%s' "$ASC_KEY_P8" > "$HOME/asc/AuthKey.p8"
+          node -e '
+            const fs=require("fs"); const p="eas.json";
+            const j=JSON.parse(fs.readFileSync(p,"utf8"));
+            j.submit.production.ios.ascApiKeyPath=process.env.HOME+"/asc/AuthKey.p8";
+            fs.writeFileSync(p,JSON.stringify(j,null,2));
+            console.log("ascApiKeyPath ->", j.submit.production.ios.ascApiKeyPath);
+          '
+
+      - name: Submit
+        run: |
+          ID_ARG="--latest"
+          if [ -n "${{ github.event.inputs.build_id }}" ]; then
+            ID_ARG="--id ${{ github.event.inputs.build_id }}"
+          fi
+          eas submit -p ${{ github.event.inputs.platform }} --profile production $ID_ARG --non-interactive
