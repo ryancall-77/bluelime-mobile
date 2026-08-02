@@ -74,7 +74,12 @@ jobs:
             node -e '
               const fs=require("fs"), p="eas.json";
               const j=JSON.parse(fs.readFileSync(p,"utf8"));
+              // EAS requires ascApiKeyPath + ascApiKeyId + ascApiKeyIssuerId
+              // together or not at all — deleting only the path leaves an
+              // invalid partial config and it refuses to run.
               delete j.submit.production.ios.ascApiKeyPath;
+              delete j.submit.production.ios.ascApiKeyId;
+              delete j.submit.production.ios.ascApiKeyIssuerId;
               fs.writeFileSync(p,JSON.stringify(j,null,2));
             '
             echo "No ASC_API_KEY_P8 secret - falling back to credentials stored on Expo."
