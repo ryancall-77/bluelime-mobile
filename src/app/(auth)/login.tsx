@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { Screen, Button, Field, ErrorText } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
@@ -33,7 +34,12 @@ export default function Login() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.hero}>
-            <Text style={styles.brand}>RealtyZoom <Text style={{ color: colors.lime }}>Deals</Text></Text>
+            <Image
+              source={require('../../../assets/images/brand-wide.png')}
+              style={styles.brandLogo}
+              contentFit="contain"
+              accessibilityLabel="RealtyZoom"
+            />
             <Text style={styles.tagline}>Verified off-market deals. Real numbers up front.</Text>
             <View style={styles.headsUp}>
               <Text style={styles.headsUpText}>
@@ -85,6 +91,7 @@ const styles = StyleSheet.create({
   container: { padding: space.xl, paddingTop: space.xxl, flexGrow: 1, justifyContent: 'center' },
   hero: { marginBottom: space.xxl },
   brand: { color: colors.text, fontSize: 34, fontWeight: '800' },
+  brandLogo: { width: 220, height: 55, alignSelf: 'center' },
   tagline: { color: colors.textDim, fontSize: font.body, marginTop: space.sm },
   headsUp: {
     marginTop: space.lg, backgroundColor: 'rgba(125,226,75,0.12)', borderRadius: 12,

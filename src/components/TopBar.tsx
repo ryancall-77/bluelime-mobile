@@ -1,13 +1,28 @@
 import React from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, space, font } from '@/lib/theme';
 
-// Shared top bar for both top-level modes: RealtyZoom mark (left), a centered
-// Marketplace / Underwriting segmented toggle, and the profile avatar (right).
-// Rendered as the header for every screen in the (marketplace) and
-// (underwriting) tab groups, so the toggle + profile are always one tap away.
+// Shared top bar for both top-level modes: the RealtyZoom lockup on the left,
+// with the Marketplace / Underwriting toggle and the profile avatar pushed to
+// the right. Header for every screen in the (marketplace) and (underwriting)
+// groups.
+//
+// The toggle used to be ABSOLUTELY positioned to sit dead-centre, which meant it
+// overlapped the brand the moment the two together needed more than the bar's
+// width — which they did (Ryan, 2026-08-02: "the buttons at the top sit on top
+// of the logo"). It is a plain flex row now, so the pieces cannot collide: the
+// lockup takes its fixed width, a flexible spacer pushes the controls right, and
+// the toggle shrinks rather than overlapping.
+//
+// The lockup is the SAME artwork the website header uses (brand-wide.png,
+// copied from app/public/logo-wide.png) instead of the square app icon plus a
+// separate text label, so the two surfaces can't drift apart.
+//
+// Uses expo-image, matching DealCard/PhotoViewer/deal[id] — note it takes
+// `contentFit`, not react-native Image's `resizeMode`.
 
 type Mode = 'marketplace' | 'underwriting';
 
@@ -24,46 +39,49 @@ export function TopBar({ active }: { active: Mode }) {
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 6 }]}>
-      {/* Left: brand */}
-      <View style={styles.side}>
-        <Image source={require('../../assets/images/icon.png')} style={styles.logo} resizeMode="contain" />
-        <Text style={styles.brand}>RealtyZoom</Text>
-      </View>
+      <Image
+        source={require('../../assets/images/brand-wide.png')}
+        style={styles.logo}
+        contentFit="contain"
+        accessibilityLabel="RealtyZoom"
+      />
 
-      {/* Center: mode toggle (absolutely centered so it stays put regardless of side widths) */}
-      <View style={styles.segmentWrap} pointerEvents="box-none">
-        <View style={styles.segment}>
-          <Pressable
-            onPress={() => go('marketplace')}
-            style={[styles.seg, active === 'marketplace' && styles.segOn]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: active === 'marketplace' }}
-          >
-            <Text style={[styles.segText, active === 'marketplace' && styles.segTextOn]}>Marketplace</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => go('underwriting')}
-            style={[styles.seg, active === 'underwriting' && styles.segOn]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: active === 'underwriting' }}
-          >
-            <Text style={[styles.segText, active === 'underwriting' && styles.segTextOn]}>Underwriting</Text>
-          </Pressable>
-        </View>
-      </View>
+      {/* Flexible gap: pushes the controls right and absorbs the slack, so the
+          brand and the toggle can never occupy the same pixels. */}
+      <View style={styles.spacer} />
 
-      {/* Right: profile */}
-      <View style={[styles.side, styles.sideRight]}>
+      <View style={styles.segment}>
         <Pressable
-          onPress={() => router.push('/account')}
-          hitSlop={10}
+          onPress={() => go('marketplace')}
+          style={[styles.seg, active === 'marketplace' && styles.segOn]}
           accessibilityRole="button"
-          accessibilityLabel="Profile and account settings"
-          style={styles.avatar}
+          accessibilityState={{ selected: active === 'marketplace' }}
         >
-          <Text style={styles.avatarText}>👤</Text>
+          <Text numberOfLines={1} style={[styles.segText, active === 'marketplace' && styles.segTextOn]}>
+            Deals
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => go('underwriting')}
+          style={[styles.seg, active === 'underwriting' && styles.segOn]}
+          accessibilityRole="button"
+          accessibilityState={{ selected: active === 'underwriting' }}
+        >
+          <Text numberOfLines={1} style={[styles.segText, active === 'underwriting' && styles.segTextOn]}>
+            Underwrite
+          </Text>
         </Pressable>
       </View>
+
+      <Pressable
+        onPress={() => router.push('/account')}
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel="Profile and account settings"
+        style={styles.avatar}
+      >
+        <Text style={styles.avatarText}>👤</Text>
+      </Pressable>
     </View>
   );
 }
@@ -72,39 +90,34 @@ const styles = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: space.md,
     paddingBottom: space.sm,
+    gap: 8,
     backgroundColor: colors.bg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  side: { flexDirection: 'row', alignItems: 'center', minWidth: 72, gap: 6 },
-  sideRight: { justifyContent: 'flex-end' },
-  logo: { width: 24, height: 24 },
-  brand: { color: colors.text, fontSize: font.body, fontWeight: '800' },
-  segmentWrap: {
-    position: 'absolute',
-    left: 0, right: 0, top: 0, bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: space.sm,
-  },
+  // Matches the lockup's own 4:1 aspect so it never distorts.
+  logo: { width: 128, height: 32, flexShrink: 0 },
+  spacer: { flex: 1, minWidth: 4 },
   segment: {
     flexDirection: 'row',
+    flexShrink: 1,
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.pill,
-    padding: 3,
+    padding: 2,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  seg: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: radius.pill },
+  // Tighter than before — shorter labels and less padding, so lockup + toggle +
+  // avatar all fit across a narrow phone with room to spare.
+  seg: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: radius.pill },
   segOn: { backgroundColor: colors.blue },
-  segText: { color: colors.textDim, fontSize: font.small, fontWeight: '700' },
+  segText: { color: colors.textDim, fontSize: font.tiny, fontWeight: '700' },
   segTextOn: { color: colors.white },
   avatar: {
-    width: 34, height: 34, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt,
+    width: 30, height: 30, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt,
     borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontSize: 18 },
+  avatarText: { fontSize: 15 },
 });
