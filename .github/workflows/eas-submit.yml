@@ -50,25 +50,35 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      # The ASC API key lives at a Windows path in eas.json, which doesn't exist
-      # on the runner. Materialise it from a repo secret and point eas.json at it.
-      - name: Write App Store Connect API key
+      # eas.json points ascApiKeyPath at a Windows path that doesn't exist on the
+      # runner. Two ways forward, tried in order so this needs no human step
+      # whenever Expo already holds the key:
+      #   1. ASC_API_KEY_P8 repo secret -> materialise it and repoint eas.json
+      #   2. no secret -> STRIP ascApiKeyPath so EAS falls back to the App Store
+      #      Connect API key stored in Expo's own credential service
+      - name: Resolve App Store Connect credentials
         env:
           ASC_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
         run: |
-          if [ -z "$ASC_KEY_P8" ]; then
-            echo "::error::ASC_API_KEY_P8 repo secret is not set — add the AuthKey_*.p8 contents to it."
-            exit 1
+          if [ -n "$ASC_KEY_P8" ]; then
+            mkdir -p "$HOME/asc"
+            printf '%s' "$ASC_KEY_P8" > "$HOME/asc/AuthKey.p8"
+            node -e '
+              const fs=require("fs"), p="eas.json";
+              const j=JSON.parse(fs.readFileSync(p,"utf8"));
+              j.submit.production.ios.ascApiKeyPath=process.env.HOME+"/asc/AuthKey.p8";
+              fs.writeFileSync(p,JSON.stringify(j,null,2));
+            '
+            echo "Using ASC key from repo secret."
+          else
+            node -e '
+              const fs=require("fs"), p="eas.json";
+              const j=JSON.parse(fs.readFileSync(p,"utf8"));
+              delete j.submit.production.ios.ascApiKeyPath;
+              fs.writeFileSync(p,JSON.stringify(j,null,2));
+            '
+            echo "No ASC_API_KEY_P8 secret - falling back to credentials stored on Expo."
           fi
-          mkdir -p "$HOME/asc"
-          printf '%s' "$ASC_KEY_P8" > "$HOME/asc/AuthKey.p8"
-          node -e '
-            const fs=require("fs"); const p="eas.json";
-            const j=JSON.parse(fs.readFileSync(p,"utf8"));
-            j.submit.production.ios.ascApiKeyPath=process.env.HOME+"/asc/AuthKey.p8";
-            fs.writeFileSync(p,JSON.stringify(j,null,2));
-            console.log("ascApiKeyPath ->", j.submit.production.ios.ascApiKeyPath);
-          '
 
       - name: Submit
         run: |
