@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Bluelime Deals",
+    "name": "RealtyZoom",
     "slug": "bluelime-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,7 +12,6 @@
       "policy": "fingerprint"
     },
     "ios": {
-      "icon": "./assets/expo.icon",
       "supportsTablet": false,
       "bundleIdentifier": "ai.bluelime.deals",
       "entitlements": {
@@ -20,14 +19,14 @@
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "Bluelime lets you attach a proof-of-funds screenshot to an offer.",
-        "NSCameraUsageDescription": "Bluelime lets you photograph a proof-of-funds document to attach to an offer."
+        "NSPhotoLibraryUsageDescription": "RealtyZoom lets you attach a proof-of-funds screenshot to an offer.",
+        "NSCameraUsageDescription": "RealtyZoom lets you photograph a proof-of-funds document to attach to an offer."
       }
     },
     "android": {
       "package": "ai.bluelime.deals",
       "adaptiveIcon": {
-        "backgroundColor": "#0B1B2B",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -58,7 +57,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0B1B2B",
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 96
         }
