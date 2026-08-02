@@ -7,7 +7,9 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "ios": { "simulator": false },
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://bluelime.ai",
         "EXPO_PUBLIC_SUPABASE_URL": "https://hyfbzxibqphxavfgjojx.supabase.co",
@@ -17,7 +19,9 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
-      "ios": { "simulator": false },
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://bluelime.ai",
         "EXPO_PUBLIC_SUPABASE_URL": "https://hyfbzxibqphxavfgjojx.supabase.co",
@@ -37,6 +41,7 @@
   "submit": {
     "production": {
       "ios": {
+        "ascAppId": "6790447988",
         "ascApiKeyPath": "C:/Users/ryan/rz-keys/AuthKey_L4CL6XW2AH.p8",
         "ascApiKeyId": "L4CL6XW2AH",
         "ascApiKeyIssuerId": "7320cdfa-b74c-49d7-b7b8-3c1a01d15076"
