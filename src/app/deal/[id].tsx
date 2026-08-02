@@ -58,7 +58,7 @@ export default function DealDetail() {
   const report = () => {
     Alert.alert(
       'Report this listing',
-      'Flag this deal for review by the Bluelime team (fraud, inaccurate, or objectionable content).',
+      'Flag this deal for review by the RealtyZoom team (fraud, inaccurate, or objectionable content).',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -192,7 +192,7 @@ export default function DealDetail() {
           {/* Address */}
           <Text style={styles.address}>{deal.address.split(',')[0]}</Text>
           <Text style={styles.location}>{fmtCityState(deal.city, deal.state)}{deal.zip ? ` ${deal.zip}` : ''}</Text>
-          {specs ? <Text style={styles.specs}>{specs}  ·  <Text style={{ color: colors.blue }}>⚡ verified by Bluelime</Text></Text> : null}
+          {specs ? <Text style={styles.specs}>{specs}  ·  <Text style={{ color: colors.blue }}>⚡ verified by RealtyZoom</Text></Text> : null}
 
           {/* Flip box */}
           {hasProfit && (

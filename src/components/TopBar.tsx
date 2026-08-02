@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, space, font } from '@/lib/theme';
 
-// Shared top bar for both top-level modes: Bluelime mark (left), a centered
+// Shared top bar for both top-level modes: RealtyZoom mark (left), a centered
 // Marketplace / Underwriting segmented toggle, and the profile avatar (right).
 // Rendered as the header for every screen in the (marketplace) and
 // (underwriting) tab groups, so the toggle + profile are always one tap away.
@@ -27,7 +27,7 @@ export function TopBar({ active }: { active: Mode }) {
       {/* Left: brand */}
       <View style={styles.side}>
         <Image source={require('../../assets/images/icon.png')} style={styles.logo} resizeMode="contain" />
-        <Text style={styles.brand}>Bluelime</Text>
+        <Text style={styles.brand}>RealtyZoom</Text>
       </View>
 
       {/* Center: mode toggle (absolutely centered so it stays put regardless of side widths) */}

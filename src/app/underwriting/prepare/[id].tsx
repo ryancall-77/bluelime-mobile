@@ -159,7 +159,7 @@ export default function PrepareListing() {
       const shareUrl = res.listing_url || res.buyer_url;
       try {
         await Share.share({
-          message: `${params.address ? params.address + ' — ' : ''}View this deal on Bluelime: ${shareUrl}`,
+          message: `${params.address ? params.address + ' — ' : ''}View this deal on RealtyZoom: ${shareUrl}`,
           url: shareUrl,
         });
       } catch { /* user cancelled the share sheet */ }

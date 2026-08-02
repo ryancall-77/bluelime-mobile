@@ -82,7 +82,7 @@ export default function Account() {
   const confirmDelete = () => {
     Alert.alert(
       'Delete account',
-      'This permanently deletes your Bluelime account, buy-box, saved deals, offers, and messages. This cannot be undone.',
+      'This permanently deletes your RealtyZoom account, buy-box, saved deals, offers, and messages. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -167,7 +167,7 @@ export default function Account() {
 
       <Button title="Sign out" onPress={signOut} variant="outline" style={{ marginBottom: space.lg }} />
       <Button title="Delete account" onPress={confirmDelete} loading={deleting} variant="danger" />
-      <Text style={styles.footer}>Bluelime Deals · buyer app</Text>
+      <Text style={styles.footer}>RealtyZoom Deals · buyer app</Text>
       <Text style={styles.footer}>{BUILD_TAG}</Text>
     </ScrollView>
   );

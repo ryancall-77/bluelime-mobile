@@ -1,4 +1,4 @@
-// Small shared UI primitives for Bluelime Deals — themed for the single dark
+// Small shared UI primitives for RealtyZoom Deals — themed for the single dark
 // brand palette. Keeps screens declarative.
 
 import React from 'react';
@@ -80,7 +80,7 @@ export function Card({ children, style }: { children: React.ReactNode; style?: V
 export function VerifiedBadge({ small }: { small?: boolean }) {
   return (
     <View style={[styles.badge, small && { paddingVertical: 2, paddingHorizontal: 6 }]}>
-      <Text style={[styles.badgeText, small && { fontSize: font.tiny }]}>✓ Verified by Bluelime</Text>
+      <Text style={[styles.badgeText, small && { fontSize: font.tiny }]}>✓ Verified by RealtyZoom</Text>
     </View>
   );
 }

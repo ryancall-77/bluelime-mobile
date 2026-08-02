@@ -1,4 +1,4 @@
-// Shared API types — mirror the Bluelime marketplace backend contract exactly
+// Shared API types — mirror the RealtyZoom marketplace backend contract exactly
 // (see README "Backend API contract"). Money is always integer cents.
 
 export interface FeedDeal {

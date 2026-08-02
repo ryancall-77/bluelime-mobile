@@ -136,7 +136,7 @@ export default function OfferFlow() {
           <Button title="Submit offer" onPress={submit} loading={busy} variant="accent" />
           <Text style={styles.disclaimer}>
             Submitting sends your offer and any attached document to the seller. Numbers shown on the deal are
-            Bluelime-verified estimates, not a guarantee.
+            RealtyZoom-verified estimates, not a guarantee.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
