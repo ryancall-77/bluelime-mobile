@@ -1,22 +1,34 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Screen, Button, Field, Card, ErrorText } from '@/components/ui';
-import { makeOffer } from '@/lib/api';
+import { makeOffer, getDeal, getProfile } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { readFileBytes, type FileBytes } from '@/lib/upload';
 import { dollarsToCents, fmtUsd } from '@/lib/format';
-import { colors, font, radius, space } from '@/lib/theme';
+import { colors, font, space } from '@/lib/theme';
 
+// Web parity (Ryan, 2026-08-09): every buyer here is already signed in (the
+// root layout hard-gates the whole app), so this never re-asks for name/email
+// like the old version did — it pulls them from the account, same as
+// DealForms.tsx's OfferModal on web. Also matches web on showing the seller's
+// required offer terms with an agree checkbox, gating submit the same way.
 export default function OfferFlow() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { email: authEmail } = useAuth();
+
+  const [loadingContext, setLoadingContext] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [termLines, setTermLines] = useState<string[]>([]);
+  const [agreed, setAgreed] = useState(false);
+
   const [amount, setAmount] = useState('');
   const [terms, setTerms] = useState('');
   const [pof, setPof] = useState<(FileBytes) | null>(null);
@@ -24,7 +36,40 @@ export default function OfferFlow() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [profileRes, dealRes] = await Promise.all([
+          getProfile().catch(() => null),
+          getDeal(String(id)).catch(() => null),
+        ]);
+        if (cancelled) return;
+        if (profileRes) {
+          setName(profileRes.profile.display_name ?? '');
+          setEmail(profileRes.profile.email ?? authEmail ?? '');
+          setPhone(profileRes.profile.phone ?? '');
+        } else if (authEmail) {
+          setEmail(authEmail);
+        }
+        const rawTerms = dealRes?.deal.marketing?.offer_terms ?? '';
+        const lines = rawTerms
+          .split(/\r?\n/)
+          .map((t) => t.replace(/^[•\-*]\s+/, '').trim())
+          .filter(Boolean);
+        setTermLines(lines);
+      } finally {
+        if (!cancelled) setLoadingContext(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
   const cents = dollarsToCents(amount);
+  const hasTerms = termLines.length > 0;
+  const amountValid = !!cents && cents > 0;
+  const canSubmit = !busy && amountValid && (!hasTerms || agreed);
 
   const pickDocument = async () => {
     setError(null);
@@ -56,17 +101,16 @@ export default function OfferFlow() {
 
   const submit = async () => {
     setError(null);
-    if (!name.trim()) { setError('Enter your name.'); return; }
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setError('Enter a valid email.'); return; }
-    if (!cents || cents <= 0) { setError('Enter a valid offer amount.'); return; }
+    if (!canSubmit) return;
     setBusy(true);
     try {
       await makeOffer(String(id), {
-        name: name.trim(),
+        name: name.trim() || 'RealtyZoom buyer',
         email: email.trim(),
         phone: phone.trim() || undefined,
-        amountCents: cents,
+        amountCents: cents!,
         specialTerms: terms.trim() || undefined,
+        termsAgreed: hasTerms ? agreed : undefined,
         pof: pof ? { bytes: pof.bytes, fileName: pof.fileName, mimeType: pof.mimeType } : null,
       });
       setDone(true);
@@ -92,29 +136,54 @@ export default function OfferFlow() {
     );
   }
 
+  if (loadingContext) {
+    return (
+      <Screen>
+        <View style={styles.doneWrap}>
+          <ActivityIndicator color={colors.blue} size="large" />
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Field label="Your name" value={name} onChangeText={setName} placeholder="Full name" />
-          <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="you@email.com" />
-          <Field label="Phone (optional)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="(555) 123-4567" />
           <Field
             label="Offer amount"
             value={amount}
             onChangeText={setAmount}
             keyboardType="numeric"
             placeholder="e.g. 185000"
+            autoFocus
           />
           {cents != null && <Text style={styles.hint}>{fmtUsd(cents)}</Text>}
           <Field
             label="Special terms (optional)"
             value={terms}
             onChangeText={setTerms}
-            placeholder="Cash, 7-day close, inspection contingency…"
+            placeholder="Close date, contingencies, anything that differs from the terms listed…"
             multiline
             style={{ height: 90, textAlignVertical: 'top' }}
           />
+
+          {hasTerms ? (
+            <View style={{ marginBottom: space.md }}>
+              <Text style={styles.label}>Required offer terms</Text>
+              <Card>
+                {termLines.map((t, i) => (
+                  <Text key={i} style={styles.termLine}>• {t}</Text>
+                ))}
+              </Card>
+              <Pressable style={styles.agreeRow} onPress={() => setAgreed((v) => !v)} accessibilityRole="checkbox" accessibilityState={{ checked: agreed }}>
+                <View style={[styles.checkbox, agreed && styles.checkboxOn]}>
+                  {agreed ? <Text style={styles.checkboxMark}>✓</Text> : null}
+                </View>
+                <Text style={styles.agreeText}>I agree to the terms stated above, except as noted in my special terms.</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           <Text style={styles.label}>Proof of funds</Text>
           <Card style={{ marginBottom: space.md }}>
@@ -133,7 +202,12 @@ export default function OfferFlow() {
           </Card>
 
           <ErrorText>{error}</ErrorText>
-          <Button title="Submit offer" onPress={submit} loading={busy} variant="accent" />
+          <Button title="Submit offer" onPress={submit} loading={busy} disabled={!canSubmit} variant="accent" />
+          {!amountValid ? (
+            <Text style={styles.disabledHint}>Enter an offer amount to submit.</Text>
+          ) : hasTerms && !agreed ? (
+            <Text style={styles.disabledHint}>Agree to the seller&apos;s terms to submit.</Text>
+          ) : null}
           <Text style={styles.disclaimer}>
             Submitting sends your offer and any attached document to the seller. Numbers shown on the deal are
             RealtyZoom-verified estimates, not a guarantee.
@@ -148,11 +222,21 @@ const styles = StyleSheet.create({
   content: { padding: space.lg, paddingBottom: space.xxl },
   label: { color: colors.textDim, fontSize: font.small, marginBottom: space.xs, fontWeight: '600' },
   hint: { color: colors.lime, fontSize: font.small, marginTop: -space.sm, marginBottom: space.md, fontWeight: '700' },
+  termLine: { color: colors.text, fontSize: font.small, lineHeight: 20 },
+  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm, marginTop: space.sm },
+  checkbox: {
+    width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center', marginTop: 1,
+  },
+  checkboxOn: { backgroundColor: colors.lime, borderColor: colors.lime },
+  checkboxMark: { color: colors.bg, fontSize: 13, fontWeight: '900' },
+  agreeText: { color: colors.text, fontSize: font.small, flex: 1, lineHeight: 19 },
   pofRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.md },
   pofName: { color: colors.text, fontSize: font.small, flex: 1, marginRight: space.md },
   pofHint: { color: colors.textDim, fontSize: font.small, marginBottom: space.md },
   remove: { color: colors.danger, fontSize: font.small, fontWeight: '700' },
   pofBtns: { flexDirection: 'row', gap: space.md },
+  disabledHint: { color: colors.textFaint, fontSize: font.tiny, textAlign: 'center', marginTop: space.sm },
   disclaimer: { color: colors.textFaint, fontSize: font.tiny, marginTop: space.md, lineHeight: 16 },
   doneWrap: { flex: 1, justifyContent: 'center', padding: space.xl },
   doneTitle: { color: colors.text, fontSize: font.h1, fontWeight: '800', textAlign: 'center' },

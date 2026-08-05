@@ -237,6 +237,10 @@ export interface OfferInput {
   phone?: string;
   amountCents: number;
   specialTerms?: string;
+  // Web parity (Ryan, 2026-08-09): true when the seller has required offer
+  // terms and the buyer checked "I agree." Omitted/false when there are no
+  // terms to agree to — the server only cares when terms exist.
+  termsAgreed?: boolean;
   // Proof-of-funds document, already read to bytes (see readFileBytes).
   pof?: { bytes: Uint8Array; fileName: string; mimeType: string } | null;
 }
@@ -255,6 +259,7 @@ export async function makeOffer(id: string, input: OfferInput): Promise<{ ok: tr
   form.append('offer_amount', String(Math.round(input.amountCents / 100)));
   if (input.specialTerms) form.append('special_terms', input.specialTerms);
   form.append('pof_provided', input.pof ? 'true' : 'false');
+  form.append('terms_agreed', input.termsAgreed ? 'true' : 'false');
 
   if (input.pof) {
     // Build a Blob from the actual bytes — NOT a { uri } shim.

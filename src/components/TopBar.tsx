@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, space, font } from '@/lib/theme';
+import { getLastUnderwritingTab } from '@/lib/lastTab';
 
 // Shared top bar for both top-level modes: the RealtyZoom lockup on the left,
 // with the Marketplace / Underwriting toggle and the profile avatar pushed to
@@ -32,9 +33,11 @@ export function TopBar({ active }: { active: Mode }) {
 
   const go = (mode: Mode) => {
     if (mode === active) return;
+    if (mode === 'marketplace') { router.replace('/(marketplace)'); return; }
     // (underwriting) is a route group with no index screen, so navigating to the
-    // bare group path is an unmatched route — target its anchor screen (reports).
-    router.replace(mode === 'marketplace' ? '/(marketplace)' : '/(underwriting)/reports');
+    // bare group path is an unmatched route — target the tray tab they were
+    // last on (first time ever: Submit, the leftmost tab). (Ryan, 2026-08-09)
+    getLastUnderwritingTab().then((tab) => router.replace(`/(underwriting)/${tab}`));
   };
 
   return (
