@@ -3,15 +3,18 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Button, EmptyState, Loading, VerifiedBadge } from '@/components/ui';
 import { listUnderwritings } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import type { UnderwritingListItem } from '@/lib/types';
 import { fmtUsdShort } from '@/lib/format';
 import { colors, radius, space, font } from '@/lib/theme';
 
-// Listings — the deals you've published to the RealtyZoom Marketplace (a filtered
-// view of your underwritings where buyer sharing is enabled). Tap to open the
-// report + re-share the buyer link.
+// Listings — the deals YOU'VE published to the RealtyZoom Marketplace (a filtered
+// view of your own underwritings where buyer sharing is enabled — /api/underwriting/list
+// scopes by org, not creator, so the creator filter happens here; "My Deals"/Reports
+// intentionally stays org-wide). Tap to open the report + re-share the buyer link.
 export default function Listings() {
   const router = useRouter();
+  const { session } = useAuth();
   const [items, setItems] = useState<UnderwritingListItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -19,14 +22,15 @@ export default function Listings() {
     if (isRefresh) setRefreshing(true);
     try {
       const res = await listUnderwritings();
-      const posted = (Array.isArray(res) ? res : []).filter((u) => u.buyer_share_enabled);
+      const uid = session?.user?.id;
+      const posted = (Array.isArray(res) ? res : []).filter((u) => u.buyer_share_enabled && u.created_by === uid);
       setItems(posted);
     } catch {
       setItems((s) => s ?? []);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [session?.user?.id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 

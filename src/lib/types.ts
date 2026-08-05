@@ -276,6 +276,7 @@ export interface UnderwritingListItem {
   final_novation_mao_cents: number | null;
   status: UnderwritingStatus;
   created_at: string;
+  created_by?: string;
   created_by_name?: string;
   access_token: string | null;        // → report WebView: /underwriting/<access_token>
   buyer_share_token: string | null;

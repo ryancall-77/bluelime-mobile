@@ -5,7 +5,7 @@ import {
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Screen, Loading, EmptyState } from '@/components/ui';
 import { getThread, postThreadMessage, inquire, reportContent, blockCounterparty } from '@/lib/api';
-import { getProfile } from '@/lib/api';
+import { getProfile, getDeal } from '@/lib/api';
 import type { ThreadMessage } from '@/lib/types';
 import { colors, font, radius, space } from '@/lib/theme';
 import { fmtDate } from '@/lib/format';
@@ -14,6 +14,7 @@ export default function Messages() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [messages, setMessages] = useState<ThreadMessage[] | null>(null);
   const [interestId, setInterestId] = useState<string | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -31,6 +32,16 @@ export default function Messages() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // The thread itself doesn't carry listing details (it's keyed off buyer +
+  // listing, not the other way around) — a lightweight one-time fetch of the
+  // deal, same call offer/[id].tsx already makes, is enough for the banner.
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    getDeal(String(id)).then((res) => { if (!cancelled) setAddress(res?.deal.address ?? null); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [id]);
 
   const send = async () => {
     const text = draft.trim();
@@ -107,6 +118,11 @@ export default function Messages() {
           <Pressable onPress={blockSeller} hitSlop={12}><Text style={styles.headerAction}>Block</Text></Pressable>
         ),
       }} />
+      {address ? (
+        <View style={styles.addressBar}>
+          <Text style={styles.addressText} numberOfLines={1}>{address}</Text>
+        </View>
+      ) : null}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={90}
@@ -157,6 +173,11 @@ export default function Messages() {
 }
 
 const styles = StyleSheet.create({
+  addressBar: {
+    paddingHorizontal: space.lg, paddingVertical: space.sm,
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  addressText: { color: colors.textDim, fontSize: font.small, fontWeight: '600', textAlign: 'center' },
   list: { padding: space.lg, flexGrow: 1 },
   bubble: { maxWidth: '82%', borderRadius: radius.lg, padding: space.md, marginBottom: space.sm },
   mine: { alignSelf: 'flex-end', backgroundColor: colors.lime },

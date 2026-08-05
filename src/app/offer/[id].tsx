@@ -148,8 +148,12 @@ export default function OfferFlow() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Field
             label="Offer amount"
             value={amount}
@@ -201,6 +205,17 @@ export default function OfferFlow() {
             </View>
           </Card>
 
+          <Text style={styles.disclaimer}>
+            Submitting sends your offer and any attached document to the seller. Numbers shown on the deal are
+            RealtyZoom-verified estimates, not a guarantee.
+          </Text>
+        </ScrollView>
+
+        {/* Pinned footer — a plain flex sibling of the ScrollView (not absolute),
+            so KeyboardAvoidingView pushes it up together with the rest of the
+            column and it never ends up hidden behind the keyboard/QuickType bar
+            (Ryan, 2026-08-05). Mirrors deal/[id].tsx's actionBar. */}
+        <View style={styles.footer}>
           <ErrorText>{error}</ErrorText>
           <Button title="Submit offer" onPress={submit} loading={busy} disabled={!canSubmit} variant="accent" />
           {!amountValid ? (
@@ -208,18 +223,18 @@ export default function OfferFlow() {
           ) : hasTerms && !agreed ? (
             <Text style={styles.disabledHint}>Agree to the seller&apos;s terms to submit.</Text>
           ) : null}
-          <Text style={styles.disclaimer}>
-            Submitting sends your offer and any attached document to the seller. Numbers shown on the deal are
-            RealtyZoom-verified estimates, not a guarantee.
-          </Text>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space.lg, paddingBottom: space.xxl },
+  content: { padding: space.lg, paddingBottom: space.xl },
+  footer: {
+    padding: space.lg, paddingTop: space.sm,
+    backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.border,
+  },
   label: { color: colors.textDim, fontSize: font.small, marginBottom: space.xs, fontWeight: '600' },
   hint: { color: colors.lime, fontSize: font.small, marginTop: -space.sm, marginBottom: space.md, fontWeight: '700' },
   termLine: { color: colors.text, fontSize: font.small, lineHeight: 20 },

@@ -119,8 +119,8 @@ export default function DealDetail() {
         options={{
           title: deal.city ?? 'Deal',
           headerRight: () => (
-            <Pressable onPress={toggleSave} disabled={savingBusy} hitSlop={12}>
-              <Text style={{ fontSize: 22 }}>{saved ? '⭐' : '☆'}</Text>
+            <Pressable onPress={toggleSave} disabled={savingBusy} hitSlop={12} style={styles.saveButton}>
+              <Text style={[styles.saveIcon, saved && styles.saveIconActive]}>{saved ? '⭐' : '☆'}</Text>
             </Pressable>
           ),
         }}
@@ -423,6 +423,20 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
   gallery: { height: 240 },
   galleryImg: { width, height: 240, backgroundColor: colors.surfaceAlt },
+
+  // A bare ☆/⭐ Text glyph had zero contrast against the header's navy
+  // background (Ryan, 2026-08-05) — ☆ renders as a thin dark text-presentation
+  // outline with no color set. A translucent circular chip + explicit bright
+  // color on the glyph makes it read as a tappable control at a glance; ⭐'s
+  // own built-in emoji color already shows up fine once saved.
+  saveButton: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(242,247,252,0.14)',
+    borderWidth: 1, borderColor: 'rgba(242,247,252,0.4)',
+  },
+  saveIcon: { fontSize: 20, color: colors.white },
+  saveIconActive: { color: colors.warn },
 
   headline: { color: colors.lime, fontSize: font.body, fontWeight: '700', marginBottom: space.sm },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.sm },

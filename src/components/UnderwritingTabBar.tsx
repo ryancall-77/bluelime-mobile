@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, font, space } from '@/lib/theme';
+import { colors, font, radius, space } from '@/lib/theme';
 
 // Minimal shape of the tab-bar props we use (from @react-navigation/bottom-tabs,
 // a transitive dep of expo-router — typed locally so we don't depend on it directly).
@@ -56,7 +56,9 @@ export function UnderwritingTabBar({ state, descriptors, navigation }: TabBarPro
               accessibilityState={focused ? { selected: true } : {}}
               accessibilityLabel={typeof label === 'string' ? label : route.name}
             >
-              {options.tabBarIcon?.({ focused, color, size: 20 })}
+              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                {options.tabBarIcon?.({ focused, color, size: 20 })}
+              </View>
               <Text style={[styles.label, { color }]} numberOfLines={1}>
                 {label as string}
               </Text>
@@ -84,6 +86,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xs,
   },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 2 },
+  iconWrap: {
+    width: 40, height: 26, borderRadius: radius.pill,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  iconWrapActive: { backgroundColor: colors.surfaceAlt },
   label: { fontSize: font.tiny, fontWeight: '700' },
   chevron: { color: colors.textFaint, fontSize: 20, fontWeight: '400', paddingHorizontal: 1, marginBottom: 12 },
 });
