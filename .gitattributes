@@ -1,0 +1,16 @@
+# Force LF everywhere regardless of the checking-out machine's core.autocrlf.
+#
+# Root-caused 2026-08-06: eas.json (one of @expo/fingerprint's hashed sources
+# for the "fingerprint" runtimeVersion policy) checked out with CRLF locally
+# on Windows but LF via GitHub Actions' Linux runner (where the OTA workflow
+# actually runs) and in any archive built from a Windows working directory
+# (eas build tars up the literal working directory, not a fresh git checkout).
+# Same commit, two different byte streams for that one file, two different
+# fingerprint hashes — so `eas update` published a runtimeVersion the actual
+# installed build never matched, and every OTA silently failed to apply.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.hbc binary
