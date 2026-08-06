@@ -30,6 +30,13 @@ export async function readPickedFile(
 // Upload a picked image to the public property-photos bucket and return its
 // public URL. Mirrors the website prepare page's client-side path
 // (buyer/<analysisId>/<ts>-<name>).
+//
+// Body MUST be an ArrayBuffer here — not a Blob and not the File. supabase-js
+// branches on `fileBody instanceof Blob`; an expo-file-system File is a JSI
+// host object that does NOT inherit from RN's global Blob, so it fails that
+// check and falls through to being sent as a raw request body, which RN can't
+// serialize. ArrayBuffer takes the same branch but IS something RN's fetch
+// handles, and it's the documented Expo + Supabase Storage combination.
 export async function uploadListingPhoto(
   analysisId: string,
   uri: string,
@@ -37,11 +44,12 @@ export async function uploadListingPhoto(
   mimeType: string,
 ): Promise<string> {
   const { file } = await readPickedFile(uri, fileName, mimeType);
+  const bytes = await file.arrayBuffer();
   const safe = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `buyer/${analysisId}/${Date.now()}-${safe}`;
   const { error } = await supabase.storage
     .from('property-photos')
-    .upload(path, file, { upsert: true, contentType: mimeType });
+    .upload(path, bytes, { upsert: true, contentType: mimeType });
   if (error) throw new Error(error.message || 'Upload failed');
   const { data } = supabase.storage.from('property-photos').getPublicUrl(path);
   if (!data?.publicUrl) throw new Error('Could not get photo URL');

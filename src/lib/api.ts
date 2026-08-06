@@ -4,7 +4,7 @@
 //
 // Matches the backend contract in the README exactly. Money is integer cents.
 
-import type { File } from 'expo-file-system';
+import { UploadType, type File } from 'expo-file-system';
 import { API_BASE } from './config';
 import { getAccessToken } from './supabase';
 import type {
@@ -246,32 +246,80 @@ export interface OfferInput {
   pof?: { file: File; fileName: string; mimeType: string } | null;
 }
 
+// Hard ceiling on an offer submit. Without it a stalled request leaves the
+// Submit button spinning with no error and no way back — exactly what a bad
+// multipart body did on 2026-08-06 (see the note below).
+const OFFER_TIMEOUT_MS = 90_000;
+
 // POST /api/marketplace/listings/[id]/make-offer — multipart/form-data.
 //
-// IMPORTANT: RN's FormData produces 0-byte files on iOS when you pass a { uri }
-// object, so we don't pass { uri, type, name } — but RN's Blob constructor also
-// rejects `new Blob([uint8Array])` outright ("Creating blobs from 'ArrayBuffer'
-// and 'ArrayBufferView' are not supported", hit 2026-08-06). expo-file-system's
-// File instance already implements Blob, so pass it straight through instead of
-// reconstructing one.
+// ⚠️ Do NOT rebuild this on fetch + FormData when there's a file attached.
+// React Native's FormData is a polyfill, not the web API: per
+// react-native/Libraries/Network/FormData.js a part is either a string or
+// `{ uri, name?, type? }` — its own comment says "a 'blob' … in React Native
+// just means an object with a `uri` attribute", and getParts() object-spreads
+// whatever you hand it. Two attempts died here on 2026-08-06:
+//   1. `new Blob([uint8Array])` → RN's Blob ctor rejects it outright
+//      ("Creating blobs from 'ArrayBuffer' and 'ArrayBufferView' are not supported").
+//   2. expo-file-system's File — it satisfies the TS Blob interface, so it
+//      compiles, but it's a JSI host object: spreading it yields a part with
+//      NEITHER `uri` NOR `string`, the native networking layer never completes
+//      the request, the promise never settles, and submit spins forever.
+// expo-file-system's own upload() does the multipart encoding natively and
+// sidesteps FormData entirely, so that's the path whenever a file is attached.
 export async function makeOffer(id: string, input: OfferInput): Promise<{ ok: true }> {
-  const form = new FormData();
-  form.append('name', input.name);
-  form.append('email', input.email);
-  if (input.phone) form.append('phone', input.phone);
-  form.append('offer_amount', String(Math.round(input.amountCents / 100)));
-  if (input.specialTerms) form.append('special_terms', input.specialTerms);
-  form.append('pof_provided', input.pof ? 'true' : 'false');
-  form.append('terms_agreed', input.termsAgreed ? 'true' : 'false');
+  const url = `${API_BASE}/api/marketplace/listings/${encodeURIComponent(id)}/make-offer`;
 
-  if (input.pof) {
-    form.append('pof_file', input.pof.file as unknown as Blob, input.pof.fileName);
+  const fields: Record<string, string> = {
+    name: input.name,
+    email: input.email,
+    offer_amount: String(Math.round(input.amountCents / 100)),
+    pof_provided: input.pof ? 'true' : 'false',
+    terms_agreed: input.termsAgreed ? 'true' : 'false',
+  };
+  if (input.phone) fields.phone = input.phone;
+  if (input.specialTerms) fields.special_terms = input.specialTerms;
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), OFFER_TIMEOUT_MS);
+  try {
+    if (input.pof) {
+      const res = await input.pof.file.upload(url, {
+        httpMethod: 'POST',
+        uploadType: UploadType.MULTIPART,
+        fieldName: 'pof_file',
+        mimeType: input.pof.mimeType,
+        parameters: fields,       // the non-file fields ride along as form parts
+        headers: await authHeaders(),
+        signal: ctrl.signal,
+      });
+      if (res.status < 200 || res.status >= 300) {
+        let msg = `Could not submit offer (${res.status})`;
+        try {
+          const j = JSON.parse(res.body) as { error?: string };
+          if (j?.error) msg = j.error;
+        } catch { /* non-JSON body — keep the status message */ }
+        throw new Error(msg);
+      }
+      return { ok: true };
+    }
+
+    // No file → all-string parts, which RN's FormData handles correctly.
+    const form = new FormData();
+    for (const [k, v] of Object.entries(fields)) form.append(k, v);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: await authHeaders(), // do NOT set Content-Type — fetch sets the multipart boundary
+      body: form,
+      signal: ctrl.signal,
+    });
+    return parse<{ ok: true }>(res);
+  } catch (e) {
+    if (e instanceof Error && (e.name === 'AbortError' || /abort/i.test(e.message))) {
+      throw new Error('The upload timed out. Check your connection and try again.');
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-
-  const res = await fetch(`${API_BASE}/api/marketplace/listings/${encodeURIComponent(id)}/make-offer`, {
-    method: 'POST',
-    headers: await authHeaders(), // do NOT set Content-Type — fetch sets the multipart boundary
-    body: form,
-  });
-  return parse<{ ok: true }>(res);
 }
