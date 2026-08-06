@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Screen, Button, Field, Card, ErrorText } from '@/components/ui';
 import { makeOffer, getDeal, getProfile } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { readFileBytes, type FileBytes } from '@/lib/upload';
+import { readPickedFile, type PickedFile } from '@/lib/upload';
 import { dollarsToCents, fmtUsd } from '@/lib/format';
 import { colors, font, space } from '@/lib/theme';
 
@@ -31,7 +31,7 @@ export default function OfferFlow() {
 
   const [amount, setAmount] = useState('');
   const [terms, setTerms] = useState('');
-  const [pof, setPof] = useState<(FileBytes) | null>(null);
+  const [pof, setPof] = useState<(PickedFile) | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -77,8 +77,8 @@ export default function OfferFlow() {
     if (res.canceled || !res.assets?.[0]) return;
     const a = res.assets[0];
     try {
-      const bytes = await readFileBytes(a.uri, a.name ?? 'proof-of-funds', a.mimeType ?? 'application/octet-stream');
-      setPof(bytes);
+      const picked = await readPickedFile(a.uri, a.name ?? 'proof-of-funds', a.mimeType ?? 'application/octet-stream');
+      setPof(picked);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that file');
     }
@@ -92,8 +92,8 @@ export default function OfferFlow() {
     if (res.canceled || !res.assets?.[0]) return;
     const a = res.assets[0];
     try {
-      const bytes = await readFileBytes(a.uri, a.fileName ?? 'proof-of-funds.jpg', a.mimeType ?? 'image/jpeg');
-      setPof(bytes);
+      const picked = await readPickedFile(a.uri, a.fileName ?? 'proof-of-funds.jpg', a.mimeType ?? 'image/jpeg');
+      setPof(picked);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that image');
     }
@@ -111,7 +111,7 @@ export default function OfferFlow() {
         amountCents: cents!,
         specialTerms: terms.trim() || undefined,
         termsAgreed: hasTerms ? agreed : undefined,
-        pof: pof ? { bytes: pof.bytes, fileName: pof.fileName, mimeType: pof.mimeType } : null,
+        pof: pof ? { file: pof.file, fileName: pof.fileName, mimeType: pof.mimeType } : null,
       });
       setDone(true);
     } catch (e) {

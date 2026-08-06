@@ -4,6 +4,7 @@
 //
 // Matches the backend contract in the README exactly. Money is integer cents.
 
+import type { File } from 'expo-file-system';
 import { API_BASE } from './config';
 import { getAccessToken } from './supabase';
 import type {
@@ -241,16 +242,18 @@ export interface OfferInput {
   // terms and the buyer checked "I agree." Omitted/false when there are no
   // terms to agree to — the server only cares when terms exist.
   termsAgreed?: boolean;
-  // Proof-of-funds document, already read to bytes (see readFileBytes).
-  pof?: { bytes: Uint8Array; fileName: string; mimeType: string } | null;
+  // Proof-of-funds document (see readPickedFile in lib/upload.ts).
+  pof?: { file: File; fileName: string; mimeType: string } | null;
 }
 
 // POST /api/marketplace/listings/[id]/make-offer — multipart/form-data.
 //
 // IMPORTANT: RN's FormData produces 0-byte files on iOS when you pass a { uri }
-// object. We instead attach a real Blob built from the file's BYTES (read via
-// expo-file-system's new File API — see readFileBytes in upload.ts). This is the
-// documented workaround and the reason we don't pass { uri, type, name }.
+// object, so we don't pass { uri, type, name } — but RN's Blob constructor also
+// rejects `new Blob([uint8Array])` outright ("Creating blobs from 'ArrayBuffer'
+// and 'ArrayBufferView' are not supported", hit 2026-08-06). expo-file-system's
+// File instance already implements Blob, so pass it straight through instead of
+// reconstructing one.
 export async function makeOffer(id: string, input: OfferInput): Promise<{ ok: true }> {
   const form = new FormData();
   form.append('name', input.name);
@@ -262,9 +265,7 @@ export async function makeOffer(id: string, input: OfferInput): Promise<{ ok: tr
   form.append('terms_agreed', input.termsAgreed ? 'true' : 'false');
 
   if (input.pof) {
-    // Build a Blob from the actual bytes — NOT a { uri } shim.
-    const blob = new Blob([input.pof.bytes as BlobPart], { type: input.pof.mimeType });
-    form.append('pof_file', blob as unknown as Blob, input.pof.fileName);
+    form.append('pof_file', input.pof.file as unknown as Blob, input.pof.fileName);
   }
 
   const res = await fetch(`${API_BASE}/api/marketplace/listings/${encodeURIComponent(id)}/make-offer`, {

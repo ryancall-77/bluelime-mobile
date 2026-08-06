@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View,
+  Alert, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Screen, Loading, EmptyState } from '@/components/ui';
 import { getThread, postThreadMessage, inquire, reportContent, blockCounterparty } from '@/lib/api';
 import { getProfile, getDeal } from '@/lib/api';
-import type { ThreadMessage } from '@/lib/types';
+import type { ThreadMessage, DealDetail } from '@/lib/types';
 import { colors, font, radius, space } from '@/lib/theme';
 import { fmtDate } from '@/lib/format';
 
@@ -14,7 +14,7 @@ export default function Messages() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [messages, setMessages] = useState<ThreadMessage[] | null>(null);
   const [interestId, setInterestId] = useState<string | null>(null);
-  const [address, setAddress] = useState<string | null>(null);
+  const [deal, setDeal] = useState<Pick<DealDetail, 'address' | 'city' | 'state' | 'zip' | 'photo'> | null>(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -39,7 +39,11 @@ export default function Messages() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    getDeal(String(id)).then((res) => { if (!cancelled) setAddress(res?.deal.address ?? null); }).catch(() => {});
+    getDeal(String(id)).then((res) => {
+      if (cancelled || !res) return;
+      const { address, city, state, zip, photo } = res.deal;
+      setDeal({ address, city, state, zip, photo });
+    }).catch(() => {});
     return () => { cancelled = true; };
   }, [id]);
 
@@ -110,17 +114,26 @@ export default function Messages() {
 
   if (messages === null) return <Loading label="Loading messages…" />;
 
+  const cityState = [deal?.city, deal?.state].filter(Boolean).join(', ');
+  const cityStateZip = [cityState, deal?.zip].filter(Boolean).join(' ');
+
   return (
-    <Screen>
+    <Screen edges={['left', 'right']}>
       <Stack.Screen options={{
         title: 'Messages',
         headerRight: () => (
           <Pressable onPress={blockSeller} hitSlop={12}><Text style={styles.headerAction}>Block</Text></Pressable>
         ),
       }} />
-      {address ? (
+      {deal ? (
         <View style={styles.addressBar}>
-          <Text style={styles.addressText} numberOfLines={1}>{address}</Text>
+          {deal.photo
+            ? <Image source={{ uri: deal.photo }} style={styles.addressThumb} />
+            : <View style={[styles.addressThumb, styles.addressThumbEmpty]}><Text style={styles.addressThumbGlyph}>🏠</Text></View>}
+          <View style={styles.addressText}>
+            <Text style={styles.addressStreet} numberOfLines={1}>{deal.address}</Text>
+            {cityStateZip ? <Text style={styles.addressCityState} numberOfLines={1}>{cityStateZip}</Text> : null}
+          </View>
         </View>
       ) : null}
       <KeyboardAvoidingView
@@ -174,10 +187,16 @@ export default function Messages() {
 
 const styles = StyleSheet.create({
   addressBar: {
+    flexDirection: 'row', alignItems: 'center', gap: space.md,
     paddingHorizontal: space.lg, paddingVertical: space.sm,
     backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  addressText: { color: colors.textDim, fontSize: font.small, fontWeight: '600', textAlign: 'center' },
+  addressThumb: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
+  addressThumbEmpty: { alignItems: 'center', justifyContent: 'center' },
+  addressThumbGlyph: { fontSize: 18 },
+  addressText: { flex: 1 },
+  addressStreet: { color: colors.text, fontSize: font.small, fontWeight: '700' },
+  addressCityState: { color: colors.textFaint, fontSize: font.tiny, marginTop: 1 },
   list: { padding: space.lg, flexGrow: 1 },
   bubble: { maxWidth: '82%', borderRadius: radius.lg, padding: space.md, marginBottom: space.sm },
   mine: { alignSelf: 'flex-end', backgroundColor: colors.lime },

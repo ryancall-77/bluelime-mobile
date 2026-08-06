@@ -1,48 +1,47 @@
-// Read a picked document/image into bytes for multipart upload.
+// Read a picked document/image for multipart/Supabase-storage upload.
 //
-// RN's classic FormData({ uri }) attachment yields 0-byte files on iOS. The fix
-// (expo-file-system SDK 54+) is to read the file's actual bytes with the new
-// File API and attach a real Blob. We import from expo-file-system directly
-// (SDK 57 ships the new API at the package root); if a future SDK moves it,
-// switch to `expo-file-system/next` / `/legacy`.
+// RN's classic FormData({ uri }) attachment yields 0-byte files on iOS. The
+// original fix here read the file into a Uint8Array and re-wrapped it as
+// `new Blob([bytes])` — but RN's Blob polyfill rejects that construction
+// outright ("Creating blobs from 'ArrayBuffer' and 'ArrayBufferView' are not
+// supported", hit in production 2026-08-06). expo-file-system's `File` class
+// already `implements Blob` natively, so the fix is to stop reconstructing a
+// Blob at all and just pass the File instance itself wherever a Blob/file
+// body is expected — both FormData.append and Supabase Storage's .upload()
+// accept it directly.
 
 import { File } from 'expo-file-system';
 import { supabase } from './supabase';
 
-export interface FileBytes {
-  bytes: Uint8Array;
+export interface PickedFile {
+  file: File;
   fileName: string;
   mimeType: string;
 }
 
-export async function readFileBytes(
+export async function readPickedFile(
   uri: string,
   fileName: string,
   mimeType: string,
-): Promise<FileBytes> {
-  const file = new File(uri);
-  // .bytes() returns a Uint8Array of the file contents.
-  const bytes = await file.bytes();
-  return { bytes, fileName, mimeType };
+): Promise<PickedFile> {
+  return { file: new File(uri), fileName, mimeType };
 }
 
 // Upload a picked image to the public property-photos bucket and return its
 // public URL. Mirrors the website prepare page's client-side path
-// (buyer/<analysisId>/<ts>-<name>). Uses a real Blob built from the file bytes
-// (RN's { uri } FormData shim yields 0-byte files — same reason as make-offer).
+// (buyer/<analysisId>/<ts>-<name>).
 export async function uploadListingPhoto(
   analysisId: string,
   uri: string,
   fileName: string,
   mimeType: string,
 ): Promise<string> {
-  const { bytes } = await readFileBytes(uri, fileName, mimeType);
+  const { file } = await readPickedFile(uri, fileName, mimeType);
   const safe = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `buyer/${analysisId}/${Date.now()}-${safe}`;
-  const blob = new Blob([bytes as BlobPart], { type: mimeType });
   const { error } = await supabase.storage
     .from('property-photos')
-    .upload(path, blob, { upsert: true, contentType: mimeType });
+    .upload(path, file, { upsert: true, contentType: mimeType });
   if (error) throw new Error(error.message || 'Upload failed');
   const { data } = supabase.storage.from('property-photos').getPublicUrl(path);
   if (!data?.publicUrl) throw new Error('Could not get photo URL');

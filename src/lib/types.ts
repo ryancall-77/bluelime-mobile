@@ -204,6 +204,7 @@ export interface OfferListItem {
   amount_cents: number | null;
   status: 'submitted' | 'countered' | 'accepted' | 'declined' | 'withdrawn' | string;
   round: number;
+  note: string | null;         // the buyer's own special terms, submitted with the offer
   counter_cents: number | null;
   seller_note: string | null;
   responded_at: string | null;
@@ -212,6 +213,7 @@ export interface OfferListItem {
   city: string | null;
   state: string | null;
   photo: string | null;
+  offer_terms: string | null;  // the seller's required listing terms
 }
 
 // Inbox rows (buyer Messages tab / seller Buyers tab).

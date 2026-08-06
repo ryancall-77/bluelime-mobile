@@ -6,12 +6,19 @@ import {
   ActivityIndicator, Pressable, StyleSheet, Text, TextInput, TextInputProps,
   View, ViewStyle,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { colors, font, radius, space } from '@/lib/theme';
 
-export function Screen({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
+// Default edges assume NO visible native header (the screen itself sits under
+// the status bar). A screen that DOES have a visible header — the Stack
+// navigator already reserves that space — should pass edges={['left','right']}
+// to avoid double-padding the top (Ryan, 2026-08-06: this exact double-gap on
+// messages/[id].tsx, which has both a header and the default top edge).
+export function Screen({
+  children, style, edges = ['top', 'left', 'right'],
+}: { children: React.ReactNode; style?: ViewStyle; edges?: Edge[] }) {
   return (
-    <SafeAreaView style={[styles.screen, style]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.screen, style]} edges={edges}>
       {children}
     </SafeAreaView>
   );
