@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT, type Region } from 'react-native-maps';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -9,6 +9,7 @@ import type { FeedDeal } from '@/lib/types';
 import { fmtUsdShort } from '@/lib/format';
 import { colors, font, radius, space } from '@/lib/theme';
 import { EARLY_ACCESS_HEADSTART_MIN } from '@/lib/config';
+import { consumeNeedsBuyBox } from '@/lib/onboarding';
 
 // Continental-US fallback when no deal has coordinates yet.
 const US_REGION: Region = { latitude: 39.5, longitude: -98.35, latitudeDelta: 32, longitudeDelta: 40 };
@@ -54,6 +55,18 @@ export default function Search() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // First run after signup: open the buy-box editor over the map. The feed is
+  // buy-box-matched, so without one a new account sees an empty map and has no
+  // idea the gear icon is what fixes it (Ryan, 2026-08-12). Consume-once, so a
+  // user who dismisses it is never nagged again.
+  useEffect(() => {
+    let cancelled = false;
+    consumeNeedsBuyBox().then((needs) => {
+      if (!cancelled && needs) router.push('/buybox');
+    });
+    return () => { cancelled = true; };
+  }, [router]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

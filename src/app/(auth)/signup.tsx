@@ -8,6 +8,7 @@ import { Screen, Button, Field, ErrorText } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { colors, font, radius, space } from '@/lib/theme';
 import { TERMS_URL, PRIVACY_URL } from '@/lib/config';
+import { markNeedsBuyBox } from '@/lib/onboarding';
 
 // Signup includes the Apple-required EULA / terms gate for UGC apps: the buyer
 // must affirmatively agree before an account can be created.
@@ -29,6 +30,10 @@ export default function Signup() {
     setBusy(true);
     try {
       const { needsConfirm } = await signUp(email, password);
+      // Queue the buy-box prompt for whenever they actually land in the app —
+      // set BEFORE the confirm branch so it survives the email-confirmation
+      // round trip (sign up → confirm in email → come back → log in).
+      markNeedsBuyBox();
       if (needsConfirm) setConfirmSent(true);
       // If email confirmation is off, the auth listener flips signedIn and the
       // root gate routes into the app automatically.

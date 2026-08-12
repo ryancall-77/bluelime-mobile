@@ -18,11 +18,13 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<{ needsConfirm: boolean }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
 }
 
 const Ctx = createContext<AuthState>({
   ready: false, session: null, signedIn: false, email: null, configured: SUPABASE_CONFIGURED,
   signIn: async () => {}, signUp: async () => ({ needsConfirm: false }), signOut: async () => {},
+  resetPassword: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -97,6 +99,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
   };
 
+  // Password reset. The app deliberately does NOT implement its own
+  // set-a-new-password screen: Supabase's recovery link lands on the WEB app,
+  // which already has that flow built and working. Reproducing it natively
+  // would mean a second recovery path to keep correct, and the deep-link
+  // handler above has never been verified end-to-end (see docs). The user
+  // resets on the web and comes back to log in — one working path, not two.
+  //
+  // Note we do NOT reveal whether the address exists: Supabase returns success
+  // either way and the UI says "if that address has an account". Confirming an
+  // email is registered is an account-enumeration leak.
+  const resetPassword = async (email: string) => {
+    const addr = email.trim();
+    if (!addr) throw new Error('Enter your email address first.');
+    const { error } = await supabase.auth.resetPasswordForEmail(addr);
+    if (error) throw new Error(error.message);
+  };
+
   return (
     <Ctx.Provider
       value={{
@@ -105,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signedIn: !!session,
         email: session?.user?.email ?? null,
         configured: SUPABASE_CONFIGURED,
-        signIn, signUp, signOut,
+        signIn, signUp, signOut, resetPassword,
       }}
     >
       {children}

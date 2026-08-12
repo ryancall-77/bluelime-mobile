@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View,
+  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Link } from 'expo-router';
@@ -10,14 +10,17 @@ import { colors, font, space } from '@/lib/theme';
 import { EARLY_ACCESS_HEADSTART_MIN } from '@/lib/config';
 
 export default function Login() {
-  const { signIn, configured } = useAuth();
+  const { signIn, configured, resetPassword } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   const onSubmit = async () => {
     setError(null);
+    setNotice(null);
     if (!email || !password) { setError('Enter your email and password.'); return; }
     setBusy(true);
     try {
@@ -26,6 +29,25 @@ export default function Login() {
       setError(e instanceof Error ? e.message : 'Sign in failed');
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Until 2026-08-12 there was NO password recovery in the app at all — the web
+  // login had "Forgot password?" and the app didn't, so a user who forgot theirs
+  // was simply stuck with no in-app route back in.
+  const onForgot = async () => {
+    setError(null);
+    setNotice(null);
+    setResetting(true);
+    try {
+      await resetPassword(email);
+      // Deliberately non-committal about whether the address is registered —
+      // saying "no account found" would let anyone enumerate our users.
+      setNotice(`If ${email.trim()} has an account, a reset link is on its way. Open it, choose a new password, then come back and log in.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send the reset email.');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -74,7 +96,20 @@ export default function Login() {
             autoComplete="password"
             placeholder="Your password"
           />
+          <Pressable
+            onPress={onForgot}
+            disabled={resetting || !configured}
+            hitSlop={8}
+            style={styles.forgotRow}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.forgotText, (resetting || !configured) && { opacity: 0.5 }]}>
+              {resetting ? 'Sending reset link…' : 'Forgot password?'}
+            </Text>
+          </Pressable>
+
           <ErrorText>{error}</ErrorText>
+          {notice ? <Text style={styles.resetNotice}>{notice}</Text> : null}
           <Button title="Log in" onPress={onSubmit} loading={busy} disabled={!configured} />
 
           <View style={styles.footer}>
@@ -103,6 +138,12 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.warn,
   },
   noticeText: { color: colors.textDim, fontSize: font.small },
+  forgotRow: { alignSelf: 'flex-end', marginTop: -space.sm, marginBottom: space.md, paddingVertical: 4 },
+  forgotText: { color: colors.blue, fontSize: font.small, fontWeight: '600' },
+  resetNotice: {
+    color: colors.lime, fontSize: font.small, lineHeight: 19, marginBottom: space.md,
+    backgroundColor: 'rgba(125,226,75,0.10)', borderRadius: 10, padding: space.md, overflow: 'hidden',
+  },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: space.xl },
   footerText: { color: colors.textDim, fontSize: font.body },
   link: { color: colors.blue, fontSize: font.body, fontWeight: '700' },
