@@ -2,14 +2,25 @@
 
 **Read this before triggering any EAS build.** It's cheap to get wrong.
 
-## The model (no TestFlight, no App Store — internal distribution + OTA)
+**Corrected 2026-08-12** — this file used to say "no TestFlight, no App Store,"
+written before either existed. That's now wrong: the app reached TestFlight
+2026-07-13 (ASC app 6790447988, "Bluelime Deals"), and `.github/workflows/
+eas-submit.yml` submits new builds there headlessly. The core guidance below —
+use `preview` + OTA for day-to-day iteration, and don't reach for a
+`production` build casually — is still correct and still the right default.
+The distinction that matters: `preview` is Ryan's own iteration loop;
+`production` is what actually ships to TestFlight/App Store users, so it
+needs a real reason (see "When to run a native build" below) and his go-ahead
+every time.
+
+## The model — `preview` for iteration, `production` for TestFlight/App Store
 
 Two channels are configured in `eas.json`:
 
 | Profile      | Distribution | Channel      | When you use it |
 |--------------|--------------|--------------|-----------------|
-| `preview`    | **internal** | `preview`    | **The one we use.** Install straight on-device from the Expo build link/QR. No App Store, no review. |
-| `production` | store        | `production` | App Store / TestFlight only. **We are NOT using this** — it costs review overhead and doesn't receive our OTAs. |
+| `preview`    | **internal** | `preview`    | **Day-to-day iteration.** Install straight on-device from the Expo build link/QR — Ryan's normal loop, no App Store, no review. |
+| `production` | store        | `production` | **What TestFlight/App Store users actually get.** Submitted via `eas-submit.yml`. Costs review overhead (TestFlight itself needs none; public App Store release does) — don't use it for routine iteration, but it IS the real ship path, not something to avoid. |
 | `development`| internal     | (dev client) | Local dev client only. |
 
 ## Two ways a change reaches the phone

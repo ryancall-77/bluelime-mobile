@@ -49,28 +49,36 @@ Supabase vars, or use EAS secrets).
 
 ```
 src/
-  app/                     Expo Router routes (file-based)
-    _layout.tsx            Providers + auth gate + push deep-link routing
-    index.tsx              Entry redirect
-    (auth)/login,signup    Email/password login; signup has the EULA gate
-    (tabs)/index           Deal FEED (matched, numbers up front)
-    (tabs)/watchlist       Saved deals
-    (tabs)/account         Settings: buy-box, notif prefs, delete, sign out, support
-    deal/[id]              Deal DETAIL: verified P&L + gallery + comps + rehab + report/save
-    offer/[id]             OFFER flow with proof-of-funds upload
-    messages/[id]          In-app messaging thread (report/block)
-    buybox                 Buy-box setup/edit
-    terms                  In-app EULA summary
-  components/  ui.tsx, DealCard.tsx
+  app/                          Expo Router routes (file-based)
+    _layout.tsx                 Providers + auth gate + push deep-link routing
+    index.tsx                   Entry redirect
+    (auth)/login,signup         Email/password login; signup has the EULA gate
+    (marketplace)/              Buyer side — bottom tabs: Search (map/list feed),
+                                   Favorites (watchlist), Offers (pipeline), Messages (inbox)
+    (underwriting)/             Supply side — bottom tabs: Underwrite (submit), Reports
+                                   ("My Deals"), Listings (published to Marketplace), Buyers (dispo inbox)
+    deal/[id]                   Deal DETAIL: verified P&L + gallery + embedded report + report/save
+    offer/[id]                  OFFER flow with proof-of-funds upload
+    messages/[id]                Buyer↔seller thread (report message / block seller)
+    seller-thread/[id]          Seller side of a thread (reply, accept/counter/decline)
+    underwriting/new            New underwriting (modal)
+    underwriting/[id]           Owner's full report (WebView) + Push to Marketplace
+    underwriting/prepare/[id]   Listing prep — photos + marketing copy + publish
+    account                     Settings: profile, buy-box, alerts, delete, support/legal
+    buybox                      Buy-box setup/edit
+    terms                       In-app EULA summary
+  components/  TopBar.tsx, DealCard.tsx, EmbeddedReport.tsx, PhotoViewer.tsx,
+                AddressAutocomplete.tsx, SubmitUnderwritingForm.tsx, UnderwritingTabBar.tsx, ui.tsx
   lib/
-    config.ts              Env + brand constants
-    supabase.ts            Supabase RN client (LargeSecureStore, PKCE, AppState refresh)
-    secureStore.ts         Encrypted session storage adapter
-    auth.tsx               Auth context (shared web account)
-    api.ts                 Bearer API layer (matches the backend contract)
-    upload.ts              File→bytes for multipart POF upload
-    push.ts                expo-notifications register + tap routing
-    types.ts, format.ts, theme.ts
+    config.ts                   Env + brand constants
+    supabase.ts                 Supabase RN client (LargeSecureStore, PKCE, AppState refresh)
+    secureStore.ts              Encrypted session storage adapter
+    auth.tsx                    Auth context (shared web account)
+    api.ts                      Bearer API layer (matches the backend contract)
+    upload.ts                   File→bytes for multipart POF upload
+    push.ts                     expo-notifications register + tap routing
+    buildTag.ts                 Human-readable build marker shown on Account (bump on every push)
+    types.ts, format.ts, theme.ts, lastTab.ts
 ```
 
 Patterns reused from `rz-mobile` (the RealtyZoom CRM app): the auth-context shape,
@@ -121,73 +129,136 @@ switch the import in `upload.ts` to `expo-file-system/next` or `/legacy`.
 
 ## What's built vs. stubbed
 
-**Built & wired:** onboarding/login/signup with EULA gate; buy-box setup (markets,
-price band, property types, min-profit, strategy, alert mode); matched deal feed
-with numbers up front; deal detail with verified P&L, photo gallery, comps, rehab
-breakdown, "verified by Bluelime" badge; save/watchlist; offer flow with POF
-document/photo upload; in-app messaging with optimistic send, report, and block;
-push registration + tap→deal deep-link; account/settings with edit buy-box,
-notification toggle, in-app account deletion, sign out, and support/legal links.
+_Last verified against the actual code 2026-08-12 — this section had drifted
+badly stale before that (described an old `(tabs)` route layout that no longer
+exists, and called several endpoints "stubs" that had since shipped). If this
+section and the code ever disagree again, trust the code and fix this file._
 
-**Stubbed / needs backend or config:**
-- `moderation/report`, `moderation/block`, and `buyer/delete` endpoints (a parallel
-  backend agent is adding feed/deal/push; these moderation + delete routes may
-  still need building). The app calls them and handles success/error gracefully.
-- The feed's `pnl_lines` / `net_profit_cents` render if the `deal/[id]` response
-  includes them (the backend profit engine computes these — see
-  `src/lib/marketplace/profit.ts` in the main repo). If absent, the headline
-  numbers still show.
-- Notification **prefs toggle** on Account is local UX; the authoritative switch is
-  the buy-box `alert_mode` (instant/digest/off) persisted server-side.
-- Push requires a **dev build** + real device (no push in Expo Go / simulators)
-  and a valid `extra.eas.projectId` in `app.json`.
-- App icons/splash are the Expo template placeholders — replace with Bluelime art.
-- EAS `projectId` (`app.json`) and `ascAppId` (`eas.json`) are placeholders — fill
-  in after `eas init` / App Store Connect app creation.
+**Built & wired, buyer side:** onboarding/login/signup with EULA gate; buy-box
+setup (markets, price band, property types, min-profit, strategy, alert mode);
+matched deal feed (map + list) with numbers up front; deal detail with verified
+P&L, photo gallery, the full embedded web report (comps/rehab/condition), save/
+watchlist, report listing; offer flow with required-terms agreement + POF
+document/photo upload; in-app messaging with optimistic send, per-message report,
+and block seller; offers pipeline with live status + seller counters; push
+registration + tap→deal deep-link; account/settings with editable name/phone,
+buy-box edit, alert toggle, in-app account deletion, sign out, support/legal links.
+
+**Built & wired, supply side:** run a new underwriting from the phone (queues if
+no RPR agent is live); "My Deals" list with status + search; owner's full report
+in-app (WebView) with photo lightbox; publish to Marketplace via a native prepare
+screen (photos, listing copy, offer terms, quiet-list vs. alert-buyers toggle);
+Listings tab (your own published deals); Buyers tab (dispo inbox — buyer messages
++ live offers across your listings) with accept/counter/decline.
+
+**Real, not stubs — all three Apple-UGC-required moderation endpoints are live
+and have each been through a real bug-fix pass** (contract mismatches between
+the app and server were caught and fixed 2026-07-26/07-30 — see
+`api/marketplace/moderation/{report,block}/route.ts` and `buyer/delete/route.ts`
+in the main `bluelime` repo for the specifics):
+- `POST /api/marketplace/moderation/report` — writes to `content_reports`.
+- `POST /api/marketplace/moderation/block` — writes to `user_blocks`.
+- `POST /api/marketplace/buyer/delete` — deletes the Supabase auth user
+  (cascades buyer_profiles, buy_boxes, tokens, saves/alerts).
+
+**Remaining real gaps:**
+- Notification **prefs toggle** on Account is local UX; the authoritative switch
+  is the buy-box `alert_mode` (instant/digest/off) persisted server-side.
+- Push requires a **dev build** + real device (no push in Expo Go / simulators).
+- Seller "Counter" on `seller-thread/[id]` uses `Alert.prompt`, which is
+  **iOS-only** in React Native — Android sellers see "Countering is available on
+  iOS for now" instead of a working flow. Not a blocker for the iOS App Store
+  submission; worth a real fix before an Android release.
+- App icons/splash/EAS `projectId`/`ascAppId` are all **real, not placeholders**
+  (contrary to what this file used to say) — see DISTRIBUTION.md for how
+  `ascAppId` is deliberately kept OUT of the committed `eas.json` and injected
+  at CI time instead.
 
 ---
 
 ## App Store review path & moderation requirements
 
 This is a **UGC app** (buyers message sellers), so Apple requires (Guideline 1.2 /
-5.1.1) — all present in this build:
+5.1.1) — all present in this build, and confirmed present in a code review
+2026-08-12 (not just claimed here — read the actual screens):
 
 - **EULA / terms agreement at signup** — enforced checkbox on the signup screen;
-  account can't be created without it.
-- **Report control** on user content — long-press a received message, plus a
-  "Report this listing" control on the deal detail.
-- **Block control** — "Block" in the messages screen header.
-- **In-app account deletion** — Account → Delete account (Guideline 5.1.1(v)).
-- **Support/contact link** — Account → Contact support (`mailto:`).
-- A published **Terms/EULA + Privacy Policy** URL (`lib/config.ts`) — ensure these
-  pages are live before submission.
+  account can't be created without it (`(auth)/signup.tsx`).
+- **Report control** on user content — long-press a received message
+  (`messages/[id].tsx`), plus a "Report this listing" control on the deal
+  detail (`deal/[id].tsx`).
+- **Block control** — "Block" in the messages screen header (`messages/[id].tsx`).
+- **In-app account deletion** — Account → Delete account, with a confirming
+  destructive alert (Guideline 5.1.1(v)).
+- **Support/contact link** — Account → Contact support (`mailto:`), and repeated
+  on the in-app `terms.tsx` screen.
+- **Terms/EULA + Privacy Policy pages** (`lib/config.ts`'s `TERMS_URL`/
+  `PRIVACY_URL`, both `bluelime.ai/terms` and `bluelime.ai/privacy`) —
+  confirmed live (HTTP 200) 2026-08-12.
 
-Also: the iOS photo/camera usage strings are set in `app.json`,
-`ITSAppUsesNonExemptEncryption:false` is set, and you should provide a demo account
-for review since content is behind login.
+Also present: iOS photo/camera usage strings in `app.json`,
+`ITSAppUsesNonExemptEncryption:false`. Still needed before submitting for
+review: **a demo account for Apple's reviewer**, since all content is behind
+login — that's a Ryan action, not a code gap.
 
-### Build / submit (do NOT run without Ryan's per-time go — costs money)
+### Build / submit
+
+**Never run a build or submit without Ryan's per-time go — every EAS build/
+submit is billed against his account.** State the cost when you ask, every
+time — see the standing rule in project memory.
+
+`eas build`/`eas submit` are classifier-blocked in a local Claude Code shell —
+use the GitHub Actions workflows instead (`.github/workflows/eas-build.yml`,
+`eas-submit.yml`), dispatched via `gh workflow run` or the Actions tab:
 
 ```bash
-eas init                                         # sets extra.eas.projectId
-eas build --profile development --platform ios   # dev client for push testing
-eas build --profile preview     --platform ios   # internal distribution
-eas build --profile production  --platform all
-eas submit --profile production  --platform ios
+gh workflow run eas-build.yml -f platform=ios -f profile=production   # native build
+gh workflow run eas-submit.yml -f platform=ios                        # → TestFlight
 ```
 
+`eas-submit.yml` submits to **TestFlight only** — that needs no Apple review.
+Actually going public on the App Store is a separate, manual step in App Store
+Connect (opening the version page and clicking "Add for Review" /
+"Submit for Review") that nothing in this repo automates, and nobody should
+click without Ryan's explicit go — see DISTRIBUTION.md.
+
 `eas.json` uses `appVersionSource: remote` with dev/preview/production profiles;
-production auto-increments the build number.
+production auto-increments the build number. `ascAppId` is deliberately absent
+from the committed file — the submit workflow injects it at run time (see the
+comment at the top of `eas-submit.yml`); adding it to the committed file
+changes the OTA fingerprint and silently orphans installed apps from updates.
 
 ---
 
 ## Remaining work to ship
 
-1. Land the backend `feed`, `deal/[id]`, `push/register`, `save`, `moderation/*`,
-   and `buyer/delete` routes and verify shapes against `lib/types.ts`.
-2. Fill EAS `projectId`, ASC `ascAppId`, Supabase env, and real app icons/splash.
-3. Dev build on device → verify push token registration + tap deep-link, and the
-   POF multipart upload end-to-end (confirm a non-zero file lands in storage).
-4. Replace emoji tab icons with vector/SF Symbols.
-5. Confirm the PKCE email-confirm deep link resolves (`bluelimemobile://auth`).
-6. Legal: publish Terms/EULA + Privacy pages; prepare an App Store review demo login.
+_Rewritten 2026-08-12 — every item below was independently re-checked against
+the current code/build history, not assumed from the old version of this list._
+
+**Done (this list used to claim these were open — they aren't):**
+- ✅ Backend routes (`feed`, `deal/[id]`, `push/register`, `save`, `moderation/*`,
+  `buyer/delete`) are all live, and the moderation/push ones each already had a
+  real contract-mismatch bug found and fixed against this exact app.
+- ✅ EAS `projectId`, Supabase env, and real app icons/splash/adaptive-icon are
+  all filled in with real values, not placeholders.
+- ✅ Terms/EULA + Privacy pages are published and live (confirmed HTTP 200).
+
+**Still genuinely open:**
+1. **A fresh production build, before submitting.** The last App-Store-profile
+   build (`build:list` id `2ae80beb`, 2026-08-02) predates 18 commits on `main`,
+   including two real fixed bugs (a proof-of-funds upload crash/hang, and an
+   org-data leak in the Listings tab) that are only on the `preview` channel
+   today. Don't submit the stale build.
+2. Provide **a demo account** for Apple's reviewer (all content is behind
+   login) — a Ryan action, not a code change.
+3. PKCE email-confirm deep link (`bluelimemobile://auth`) is implemented
+   (`auth.tsx`) but not end-to-end verified on a real device/mailbox — do that
+   once during the next real device test.
+4. POF multipart upload and push token registration are implemented and have
+   fix history behind them (see the extensive comments in `lib/upload.ts` and
+   `lib/api.ts`), but confirm both again on the next real device test — no
+   session since has re-verified them live.
+5. Replace emoji tab icons with vector/SF Symbols — cosmetic polish, not a
+   submission blocker.
+6. Seller "Counter offer" is iOS-only (`Alert.prompt`) — fine for an
+   iOS-only submission, needs a real cross-platform input before Android ships.
