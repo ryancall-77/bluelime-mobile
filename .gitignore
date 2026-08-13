@@ -45,3 +45,5 @@ example
 # Bluelime Deals mobile
 .expo-export/
 .env
+
+supabase/.temp/
