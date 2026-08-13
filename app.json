@@ -1,11 +1,11 @@
-{
+﻿{
   "expo": {
     "name": "RealtyZoom",
     "slug": "bluelime-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "bluelimemobile",
+    "scheme": "realtyzoom",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "runtimeVersion": {
@@ -13,7 +13,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "ai.bluelime.deals",
+      "bundleIdentifier": "com.realtyzoom",
       "entitlements": {
         "aps-environment": "production"
       },
@@ -24,7 +24,7 @@
       }
     },
     "android": {
-      "package": "ai.bluelime.deals",
+      "package": "com.realtyzoom",
       "adaptiveIcon": {
         "backgroundColor": "#040a17",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -50,7 +50,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Bluelime lets you attach a proof-of-funds screenshot to an offer."
+          "photosPermission": "RealtyZoom lets you attach a proof-of-funds screenshot to an offer."
         }
       ],
       "expo-document-picker",

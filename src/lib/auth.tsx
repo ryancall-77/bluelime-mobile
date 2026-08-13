@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(next);
     });
 
-    // Handle the PKCE email-confirm deep link (bluelimemobile://auth?code=...).
+    // Handle the PKCE email-confirm deep link (realtyzoom://auth?code=...).
     const handleUrl = async (url: string | null) => {
       if (!url) return;
       const { queryParams } = Linking.parse(url);
