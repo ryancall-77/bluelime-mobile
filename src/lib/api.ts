@@ -158,6 +158,32 @@ export const listUnderwritings = () =>
 export const submitUnderwriting = (body: SubmitUnderwritingBody) =>
   send<SubmitUnderwritingResponse>('/api/underwriting/submit', 'POST', { ...body, source: 'mobile_app' });
 
+// Pre-fill beds/baths/sqft/year/lot/type from public records so the submitter can
+// SEE and correct them before running (Ryan, 2026-08-14) instead of guessing.
+// Backed by a pull-once address-keyed cache, so re-checking the same address
+// costs no extra RentCast call.
+export interface SubjectSpecs {
+  bedrooms: number | null;
+  bathrooms: number | null;
+  sqft: number | null;
+  has_pool: boolean | null;
+  year_built: number | null;
+  lot_size: number | null;
+  property_type: string | null;
+  cached?: boolean;
+}
+export const getSubjectSpecs = (address: string) =>
+  get<SubjectSpecs>(`/api/underwriting/subject-specs?address=${encodeURIComponent(address)}`);
+
+// Second opinion on property type. Returns suspect:true when the street is
+// mostly county-coded mobile homes — a WARNING for the submitter, never an
+// automatic reclassification. Florida only; elsewhere it returns suspect:false.
+export interface ManufacturedSignalResponse {
+  signal: { suspect: boolean; message: string | null } | null;
+}
+export const checkPropertyType = (address: string) =>
+  get<ManufacturedSignalResponse>(`/api/underwriting/property-type-check?address=${encodeURIComponent(address)}`);
+
 // NOTE: there is deliberately no one-tap "postToMarketplace(id)" any more. It
 // posted an EMPTY payload to buyer-generate, which (a) wrote a blank snapshot —
 // erasing any prepared listing copy and blanking the listing's marketing — and
