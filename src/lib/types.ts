@@ -294,6 +294,8 @@ export interface SubmitUnderwritingBody {
   has_pool?: boolean;
   lot_size?: number | null;
   raw_property_type?: string | null;
+  /** Submitter explicitly picked the type — engine must not auto-correct it. */
+  property_type_locked?: boolean;
   salesperson_comments?: string | null;
 }
 

@@ -17,25 +17,58 @@ import { PhotoViewer, type PhotoViewerState } from './PhotoViewer';
 // match, so the OUTER native ScrollView owns the scroll (no nested-scroll
 // conflict). A ResizeObserver re-reports height when the user expands a comp.
 
-// Reports the document height now, and whenever it changes (expand-all, images
+// Reports the content height now, and whenever it changes (expand-all, images
 // finishing load, lightbox open/close). Kept resilient with a few timed nudges.
+//
+// Measured from the content's own bounding boxes, NOT scrollHeight. scrollHeight
+// is floored at the viewport, and this WebView's viewport IS whatever height we
+// last reported — so the two feed each other: one transient over-measure gets
+// pinned in and the frame can never shrink back, which showed as a big blank gap
+// under the report (Ryan, 2026-08-18, on device). The matching 100vh floor was
+// removed from the web /embed layout at the same time; this is the belt to that
+// braces, so an older app build can't be stranded by it.
 const HEIGHT_JS = `
 (function () {
   function h() {
-    return Math.max(
-      document.body ? document.body.scrollHeight : 0,
-      document.documentElement ? document.documentElement.scrollHeight : 0
-    );
+    var b = document.body;
+    if (!b) return 0;
+    var top = window.pageYOffset || 0;
+    var max = 0;
+    for (var i = 0; i < b.children.length; i++) {
+      var el = b.children[i];
+      // Skip anything lifted out of flow (a fixed overlay would measure as the
+      // whole viewport and re-introduce the ratchet).
+      var cs = window.getComputedStyle(el);
+      if (cs.position === 'fixed' || cs.display === 'none') continue;
+      var bottom = el.getBoundingClientRect().bottom + top;
+      if (bottom > max) max = bottom;
+    }
+    // Trailing margin/padding on body isn't inside any child box.
+    var bs = window.getComputedStyle(b);
+    max += parseFloat(bs.paddingBottom || 0) + parseFloat(bs.marginBottom || 0);
+    return Math.ceil(max);
   }
+  var last = 0;
+  var timer = null;
   function post() {
-    if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(String(h()));
+    if (!window.ReactNativeWebView) return;
+    var v = h();
+    // Ignore sub-pixel churn; a resize storm here re-lays out the native tree.
+    if (v > 0 && Math.abs(v - last) > 2) {
+      last = v;
+      window.ReactNativeWebView.postMessage(String(v));
+    }
+  }
+  function schedule() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(post, 60);
   }
   post();
-  try { new ResizeObserver(post).observe(document.body); } catch (e) {}
+  try { new ResizeObserver(schedule).observe(document.body); } catch (e) {}
   try {
-    new MutationObserver(post).observe(document.body, { subtree: true, childList: true, attributes: true });
+    new MutationObserver(schedule).observe(document.body, { subtree: true, childList: true, attributes: true });
   } catch (e) {}
-  window.addEventListener('load', post);
+  window.addEventListener('load', schedule);
   [150, 400, 900, 1800, 3200].forEach(function (t) { setTimeout(post, t); });
 })();
 true;

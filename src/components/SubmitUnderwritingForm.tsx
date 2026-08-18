@@ -82,8 +82,11 @@ export function SubmitUnderwritingForm() {
         bathrooms: toFloatOrNull(baths),
         year_built: toIntOrNull(year),
         has_pool: pool,
-        // Omitted when blank so the pipeline still auto-detects, as before.
+        // Null when blank so the pipeline still auto-detects, as before. When the
+        // submitter DID pick one, lock it so the engine's RPR/tiny-lot correction
+        // can't revert it mid-run (migration 198).
         raw_property_type: propType || null,
+        property_type_locked: !!propType,
         salesperson_comments: notes.trim() || null,
       });
       if (res.queued) {
@@ -108,7 +111,12 @@ export function SubmitUnderwritingForm() {
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
         <Text style={styles.help}>
           Enter the property address. Beds/baths/sqft are optional — we pull them from public records and correct them
           automatically, but you can override if you already know them.
@@ -158,18 +166,26 @@ export function SubmitUnderwritingForm() {
           placeholder="Condition, seller situation, anything the analysis should know…"
           multiline numberOfLines={4} style={styles.notes} />
 
-        {error ? <ErrorText>{error}</ErrorText> : null}
-
-        <Button title="Run Underwriting" onPress={submit} loading={busy} style={{ marginTop: space.md }} />
-        <Text style={styles.foot}>Typically ready in 4–6 minutes. We’ll notify you when it’s done.</Text>
       </ScrollView>
+
+      {/* Pinned CTA. It used to be the last thing in the scroll, which meant the
+          submitter had to scroll past every field to reach it AND the keyboard sat
+          on top of it while the Notes field was focused (Ryan, 2026-08-18, on
+          device). Outside the ScrollView but inside the KeyboardAvoidingView it is
+          always reachable and rides above the keyboard. The error lives here too so
+          a failed submit can't scroll off-screen. */}
+      <View style={styles.footer}>
+        {error ? <ErrorText>{error}</ErrorText> : null}
+        <Button title="Run Underwriting" onPress={submit} loading={busy} />
+        <Text style={styles.foot}>Typically ready in 4–6 minutes. We’ll notify you when it’s done.</Text>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: space.lg, paddingBottom: space.xxl },
+  content: { padding: space.lg, paddingBottom: space.lg },
   help: { color: colors.textDim, fontSize: font.small, lineHeight: 20, marginBottom: space.lg },
   row: { flexDirection: 'row', gap: space.md },
   half: { flex: 1 },
@@ -179,5 +195,9 @@ const styles = StyleSheet.create({
   warn: { borderWidth: 1, borderColor: '#B45309', backgroundColor: '#78350F33', borderRadius: radius.md, padding: space.md, marginBottom: space.md },
   warnText: { color: '#FCD34D', fontSize: font.small, lineHeight: 19 },
   notes: { minHeight: 96, textAlignVertical: 'top', paddingTop: 10, borderRadius: radius.md },
-  foot: { color: colors.textFaint, fontSize: font.small, textAlign: 'center', marginTop: space.md },
+  foot: { color: colors.textFaint, fontSize: font.small, textAlign: 'center', marginTop: space.sm },
+  footer: {
+    padding: space.lg, paddingTop: space.md,
+    borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface,
+  },
 });

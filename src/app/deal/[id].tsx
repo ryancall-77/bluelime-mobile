@@ -1,6 +1,7 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   Alert, Dimensions, Linking, Pressable, ScrollView, StyleSheet, Text, View,
+  type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
@@ -25,6 +26,19 @@ export default function DealDetail() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [savingBusy, setSavingBusy] = useState(false);
+
+  // Back-to-top. The full report is embedded below the marketing sections, so a
+  // deal page runs to several thousand points and thumb-scrolling back is a
+  // chore (Ryan, 2026-08-18). The pill floats just under the persistent header
+  // -- whose height is measured rather than guessed, since it grows a metrics
+  // row only when the deal has metrics.
+  const scroller = useRef<ScrollView>(null);
+  const [headerH, setHeaderH] = useState(0);
+  const [showTop, setShowTop] = useState(false);
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    setShowTop((prev) => (prev ? y > 400 : y > 900));  // hysteresis: no flicker at the edge
+  };
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -127,7 +141,7 @@ export default function DealDetail() {
       />
 
       {/* Persistent header — stays fixed while the page scrolls (web sticky-bar parity) */}
-      <View style={styles.stickyBar}>
+      <View style={styles.stickyBar} onLayout={(e: LayoutChangeEvent) => setHeaderH(e.nativeEvent.layout.height)}>
         <View style={styles.stickyTop}>
           {photos[0] ? (
             <Image source={{ uri: photos[0] }} style={styles.stickyThumb} contentFit="cover" />
@@ -156,7 +170,13 @@ export default function DealDetail() {
         )}
       </View>
 
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView
+        ref={scroller}
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        onScroll={onScroll}
+        scrollEventThrottle={64}
+      >
         {/* Photo gallery */}
         {photos.length > 0 ? (
           <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.gallery}>
@@ -300,6 +320,18 @@ export default function DealDetail() {
           </Pressable>
         </View>
       </ScrollView>
+
+      {showTop ? (
+        <View style={[styles.topPillWrap, { top: headerH + space.sm }]} pointerEvents="box-none">
+          <Pressable
+            onPress={() => scroller.current?.scrollTo({ y: 0, animated: true })}
+            style={styles.topPill}
+            hitSlop={8}
+          >
+            <Text style={styles.topPillText}>↑  Back to top</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* Sticky action bar */}
       {accepting && (
@@ -530,6 +562,16 @@ const styles = StyleSheet.create({
   },
 
   reportBtn: { marginTop: space.xl, alignSelf: 'center', padding: space.md },
+  topPillWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  topPill: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.pill, paddingHorizontal: space.lg, paddingVertical: space.sm,
+    // Legible over report photography, which can be light.
+    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  topPillText: { color: colors.text, fontSize: font.small, fontWeight: '600' },
   actionBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: space.md,
     padding: space.lg, paddingBottom: space.xl, backgroundColor: colors.surface,
