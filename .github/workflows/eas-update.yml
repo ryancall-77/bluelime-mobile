@@ -51,15 +51,25 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Publish OTA update
-        # EXPO_PUBLIC_* vars are inlined into the JS bundle AT PUBLISH TIME. eas.json's
-        # build-profile `env` blocks only apply to `eas build`, NOT `eas update` — so
-        # without these here, every OTA shipped a bundle with an empty Supabase config
-        # and the app showed "Supabase isn't configured". Keep these in sync with the
-        # `env` blocks in eas.json (all client-safe publishable values; no secrets).
+        # EXPO_PUBLIC_* vars are inlined into the JS bundle AT PUBLISH TIME, and
+        # eas.json's build-profile `env` blocks apply to `eas build` only, NOT to
+        # `eas update` — omit them and the OTA ships an empty Supabase config
+        # ("Supabase isn't configured", login button dead).
+        #
+        # They used to be hardcoded here with a "keep these in sync with eas.json"
+        # comment. They did not stay in sync: this block still said
+        # EXPO_PUBLIC_API_BASE=https://bluelime.ai months after eas.json moved every
+        # profile to https://realtyzoom.com, so every CI OTA pointed the app at the
+        # wrong host (found 2026-08-18). Two copies of one fact drift; a comment
+        # asking a human to sync them is not a mechanism.
+        #
+        # They now live ONCE, as EAS project environment variables (production +
+        # preview, plaintext — all client-safe publishable values, no secrets), and
+        # `--environment preview` below pulls them in. Change them with
+        # `eas env:update`, and mirror into eas.json's build profiles only because
+        # `eas build` reads those instead. Verify any publish by grepping the
+        # exported bundle for the project ref, never by reading the workflow.
         env:
-          EXPO_PUBLIC_API_BASE: https://bluelime.ai
-          EXPO_PUBLIC_SUPABASE_URL: https://hyfbzxibqphxavfgjojx.supabase.co
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_pWfT5CSzHoNAuL6j_LmJSw_K8FYN0e-
           # Passed as env, NOT interpolated into the script body: `${{ }}` is a raw
           # TEXT substitution, so a commit message containing parentheses, quotes or
           # newlines produced a shell syntax error and failed the publish (it was also
@@ -74,4 +84,4 @@ jobs:
           # iOS only: --platform=all would also web-export, and Expo Router's
           # web static render evaluates native-only modules (secureStore/supabase)
           # under Node and crashes. This is an iPhone app, so publish iOS.
-          eas update --branch preview --platform ios --message "$MSG" --non-interactive
+          eas update --branch preview --environment preview --platform ios --message "$MSG" --non-interactive
