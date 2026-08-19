@@ -6,6 +6,7 @@ import { listUnderwritings } from '@/lib/api';
 import type { UnderwritingListItem, UnderwritingStatus } from '@/lib/types';
 import { fmtUsdShort } from '@/lib/format';
 import { colors, radius, space, font } from '@/lib/theme';
+import { useRuns } from '@/lib/runs';
 
 // "My Deals" — the supply-side surface. Lists this account's underwritings with
 // status + the three MAOs, and a button to run a new one. Tapping a row opens the
@@ -65,6 +66,7 @@ function Row({ item, onPress, onPush }: { item: UnderwritingListItem; onPress: (
 
 export default function MyDeals() {
   const router = useRouter();
+  const { track } = useRuns();
   const [items, setItems] = useState<UnderwritingListItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
@@ -122,7 +124,20 @@ export default function MyDeals() {
         renderItem={({ item }) => (
           <Row
             item={item}
-            onPress={() =>
+            onPress={() => {
+              // Seeding the tracker here is also how runs started on the DESKTOP
+              // extension get a banner — those never send a push, so tapping the row
+              // is the app's first sight of them.
+              track({
+                id: item.id,
+                access_token: item.access_token ?? '',
+                address: item.property_address ?? '',
+                status: item.status,
+              });
+              if (item.status === 'processing' || item.status === 'queued') {
+                router.push({ pathname: '/underwriting/progress/[id]', params: { id: item.id } });
+                return;
+              }
               router.push({
                 pathname: '/underwriting/[id]',
                 params: {
@@ -132,8 +147,8 @@ export default function MyDeals() {
                   status: item.status,
                   posted: item.buyer_share_enabled ? '1' : '0',
                 },
-              })
-            }
+              });
+            }}
             onPush={() =>
               router.push({
                 pathname: '/underwriting/prepare/[id]',

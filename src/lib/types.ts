@@ -263,7 +263,38 @@ export interface ThreadResponse {
 
 export type UnderwritingStatus =
   | 'processing' | 'queued' | 'pending_review' | 'under_review'
-  | 'approved' | 'complete' | 'failed' | 'pre_estimate_complete' | string;
+  | 'approved' | 'complete' | 'failed' | 'blocked_no_rpr' | 'pre_estimate_complete' | string;
+
+// Response shape of GET /api/underwriting/status — the tiny poll the run banner uses.
+// processing_timeline only comes back on single-id polls (the progress sheet).
+export interface RunStatusRow {
+  id: string;
+  status: UnderwritingStatus;
+  processing_stage: string | null;
+  processing_error: string | null;
+  queue_reason: string | null;
+  property_address: string | null;
+  access_token: string | null;
+  buyer_share_enabled: boolean | null;
+  processing_started_at: string | null;
+  processing_completed_at: string | null;
+  processing_timeline?: { at: string; stage: string }[] | null;
+}
+
+// The subset of an analysis the native report screen reads for its header strip.
+export interface AnalysisRow {
+  id: string;
+  status: UnderwritingStatus;
+  processing_stage: string | null;
+  property_address: string | null;
+  cash_mao_cents: number | null;
+  novation_mao_cents: number | null;
+  arv_cents: number | null;
+  rehab_total_cents: number | null;
+  misc_rehab_cents: number | null;
+  buyer_share_enabled: boolean | null;
+  access_token: string | null;
+}
 
 export interface UnderwritingListItem {
   id: string;

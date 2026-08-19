@@ -1,125 +1,177 @@
-import React, { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { WebView, type WebViewMessageEvent } from 'react-native-webview';
-import * as WebBrowser from 'expo-web-browser';
-import { Button } from '@/components/ui';
-import { PhotoViewer, type PhotoViewerState } from '@/components/PhotoViewer';
-import { reportUrl } from '@/lib/api';
+import React, { useCallback, useRef, useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import type WebView from 'react-native-webview';
+import { Button, Loading } from '@/components/ui';
+import { EmbeddedReport } from '@/components/EmbeddedReport';
+import { getAnalysisByToken, embedReportPath } from '@/lib/api';
 import { API_BASE } from '@/lib/config';
+import type { AnalysisRow } from '@/lib/types';
 import { colors, space, font } from '@/lib/theme';
 
-// Underwriting detail — the owner's full report in a WebView (the canonical
-// /underwriting/<access_token> page, which itself renders live progress while the
-// run is in flight, then the full report), plus "Push to Marketplace" which opens
-// the NATIVE prepare screen.
+// The owner's finished underwriting report, natively framed.
 //
-// Listing always goes through the prepare screen (Ryan 2026-07-29). Two things
-// this replaced:
-//  • The report page's own "Push to Marketplace" CTA is a link to the WEBSITE
-//    prepare page, which isn't mobile-optimized — onNav intercepts it and pushes
-//    the native screen instead.
-//  • The old one-tap publish here posted an empty payload, which wiped prepared
-//    listing copy and could never actually create a listing (no ask price).
+// It used to load the FULL website page in a WebView. That page's CTAs assume a desktop
+// browser session and every one of them broke in the app (Ryan, on device, 2026-08-19):
+// "← Dashboard" walked the WebView to the website and landed on a login screen, and
+// "Prep contract" opened a preview that can only ever say "Failed to load contract
+// template", because a WebView page's own fetches cannot inherit the app's per-request
+// Bearer and the in-app browser carries no cookie.
+//
+// Now it loads /embed/underwriting/<token> — the same ReviewClient, chrome-less — inside
+// a native shell that supplies the actions itself. Using the same web component rather
+// than rebuilding the report natively keeps every token-authed control working (comp
+// ARV/CMV toggles, misc-rehab, manager decision, Report an issue) and keeps the
+// manager-presence ping that flips the report to "Under Review".
 
-// Statuses whose report can be listed — matches the server publish gate
-// (buildSnapshotFromAnalysis). A pre-estimate carries no verified report.
+// Statuses whose report can be listed — mirrors the server publish gate.
 const LISTABLE = ['pending_review', 'under_review', 'approved'];
 
-// The website prepare URL the in-report CTA points at: /buyer-reports/<id>/prepare
+// The website's in-report "Push to Marketplace" CTA. Suppressed in the embed, but the
+// intercept is kept: it costs three lines, cannot misfire, and it is the correct
+// behaviour on the legacy fallback path below.
 const WEB_PREPARE_RE = /\/buyer-reports\/([0-9a-fA-F-]{36})\/prepare/;
+
+const usd = (c?: number | null) => (c == null ? '—' : '$' + Math.round(c / 100).toLocaleString());
 
 export default function UnderwritingDetail() {
   const params = useLocalSearchParams<{ id: string; token?: string; address?: string; status?: string; posted?: string }>();
-  const id = String(params.id);
+  const id = String(params.id ?? '');
   const token = params.token ? String(params.token) : '';
-  const status = params.status ? String(params.status) : '';
   const router = useRouter();
-  const posted = params.posted === '1';
-  const [loading, setLoading] = useState(true);
-  const [viewer, setViewer] = useState<PhotoViewerState | null>(null);
+  const webRef = useRef<WebView | null>(null);
 
-  // The report hands photo taps to the app instead of opening its own lightbox,
-  // so we show a native viewer with pinch-to-zoom.
-  const onMessage = (e: WebViewMessageEvent) => {
-    try {
-      const msg = JSON.parse(e.nativeEvent.data) as { type?: string; urls?: unknown; index?: unknown };
-      if (msg?.type === 'bluelime:photos' && Array.isArray(msg.urls)) {
-        const urls = msg.urls.filter((u): u is string => typeof u === 'string');
-        if (urls.length) {
-          setViewer({ urls, index: Number.isFinite(Number(msg.index)) ? Number(msg.index) : 0 });
-        }
-      }
-    } catch { /* not a message we handle */ }
-  };
+  const [row, setRow] = useState<AnalysisRow | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  // If the embed route is not deployed yet, fall back to the full page rather than show
+  // a blank screen. Cheap insurance against web/app deploy ordering.
+  const [fallback, setFallback] = useState(false);
 
+  // Re-fetch on focus. The route params are a first-paint hint only: previously the
+  // action bar read the FROZEN params, so a report that finished while the screen was
+  // open never grew its Push button until you backed out and came in again.
+  useFocusEffect(useCallback(() => {
+    let cancelled = false;
+    if (!token) { setLoaded(true); return; }
+    getAnalysisByToken(token)
+      .then(r => { if (!cancelled) setRow(r); })
+      .catch(() => { /* keep whatever we had; the embed still renders */ })
+      .finally(() => { if (!cancelled) setLoaded(true); });
+    return () => { cancelled = true; };
+  }, [token]));
+
+  const status = row?.status ?? String(params.status ?? '');
+  const address = row?.property_address || String(params.address ?? '');
   const isListable = LISTABLE.includes(status);
+  const alreadyPosted = row?.buyer_share_enabled ?? params.posted === '1';
 
   const openPrepare = (analysisId: string = id) =>
-    router.push({
-      pathname: '/underwriting/prepare/[id]',
-      params: { id: analysisId, address: params.address ?? '' },
-    });
+    router.push({ pathname: '/underwriting/prepare/[id]', params: { id: analysisId, address } });
 
-  const uri = token ? reportUrl(token) : `${API_BASE}/underwriting`;
+  // Everything the WebView must NOT be allowed to navigate to itself.
+  const onIntercept = (url: string) => {
+    const prep = url.match(WEB_PREPARE_RE);
+    if (prep) { openPrepare(prep[1]); return true; }
 
-  // Keep the report in the WebView; send real external links (a comp's Zillow
-  // source, etc.) to the in-app browser. The report's own "Push to Marketplace"
-  // CTA targets the website prepare page — intercept it and open the native
-  // prepare screen, which is built for the phone.
-  const onNav = (req: { url: string }) => {
-    const prep = req.url.match(WEB_PREPARE_RE);
-    if (prep) { openPrepare(prep[1]); return false; }
-    if (req.url === uri || req.url.startsWith(`${API_BASE}/underwriting/`)) return true;
-    if (/^(data|blob|about):/.test(req.url)) return true;
-    if (/^https?:/.test(req.url)) { WebBrowser.openBrowserAsync(req.url).catch(() => {}); return false; }
-    return true;
+    if (url.includes('/contracts/preview') || url.includes('/contracts/draft')) {
+      Alert.alert('Contracts', 'Contract prep is on the web app for now.');
+      return true;
+    }
+    // These are the links that produced Ryan's login screen. Swallow them — do NOT
+    // hand them to the in-app browser, which can only show a login form.
+    if (/^https?:\/\/[^/]+\/(dashboard|login|signup)(\/|\?|$)/.test(url)
+        || url === `${API_BASE}/` ) {
+      return true;
+    }
+    return false;
   };
+
+  if (!loaded) return <Loading label="Loading report…" />;
+
+  // A run that is still going belongs in the progress sheet, not here. `replace` so Back
+  // doesn't ping-pong between the two.
+  if (status === 'processing' || status === 'queued') {
+    return (
+      <View style={styles.wrap}>
+        <Stack.Screen options={{ title: 'Underwriting' }} />
+        <View style={styles.center}>
+          <Text style={styles.centerTitle}>Still running</Text>
+          <Text style={styles.centerBody} numberOfLines={3}>{address}</Text>
+          <Button
+            title="See progress"
+            onPress={() => router.replace({ pathname: '/underwriting/progress/[id]', params: { id } })}
+            style={{ marginTop: space.lg }}
+          />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.wrap}>
-      {token ? (
-        <WebView
-          source={{ uri }}
-          originWhitelist={['*']}
-          onShouldStartLoadWithRequest={onNav}
-          onMessage={onMessage}
-          onLoadEnd={() => setLoading(false)}
-          style={styles.web}
-          containerStyle={styles.web}
-        />
-      ) : (
-        <View style={styles.center}><Text style={styles.dim}>This report isn’t available to view yet.</Text></View>
-      )}
-      {loading && token ? (
-        <View style={styles.loading} pointerEvents="none"><ActivityIndicator color={colors.blue} /></View>
+      <Stack.Screen options={{ title: address ? address.split(',')[0] : 'Underwriting' }} />
+
+      {/* Native header strip. The web report's own sticky header is suppressed in the
+          embed (it carries the broken Dashboard links and would just duplicate this),
+          so these numbers have to live here or they are a real loss on a long scroll. */}
+      {row ? (
+        <View style={styles.strip}>
+          <Text style={styles.addr} numberOfLines={1}>{address}</Text>
+          <View style={styles.metrics}>
+            <Metric label="Cash MAO" value={usd(row.cash_mao_cents)} tint={colors.lime} />
+            <Metric label="Novation" value={usd(row.novation_mao_cents)} tint={colors.blue} />
+            <Metric label="ARV" value={usd(row.arv_cents)} />
+            <Metric label="Rehab" value={usd(row.rehab_total_cents)} tint={colors.warn} />
+          </View>
+        </View>
       ) : null}
-      <PhotoViewer state={viewer} onClose={() => setViewer(null)} />
+
+      <EmbeddedReport
+        mode="fill"
+        path={fallback ? `/underwriting/${encodeURIComponent(token)}` : embedReportPath(token)}
+        webRef={webRef}
+        onIntercept={onIntercept}
+        onHttpError={(s) => { if (s === 404 && !fallback) setFallback(true); }}
+      />
 
       {isListable ? (
-        <View style={styles.bar}>
+        <View style={styles.actions}>
           <Button
-            title={posted ? '🚀 Update Marketplace listing' : '🚀 Push to Marketplace'}
-            variant={posted ? 'accent' : 'primary'}
+            title={alreadyPosted ? '🚀 Update Marketplace listing' : '🚀 Push to Marketplace'}
+            variant="accent"
             onPress={() => openPrepare()}
           />
-          <Text style={styles.hint}>
-            {posted
-              ? 'Live on the Marketplace — edit the photos and listing details.'
-              : 'Add photos and listing details, then publish and share the buyer link.'}
-          </Text>
         </View>
       ) : null}
     </View>
   );
 }
 
+function Metric({ label, value, tint }: { label: string; value: string; tint?: string }) {
+  return (
+    <View style={styles.metric}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={[styles.metricValue, tint ? { color: tint } : null]} numberOfLines={1}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.bg },
-  web: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl },
-  dim: { color: colors.textDim, fontSize: font.body, textAlign: 'center' },
-  loading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 72, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
-  bar: { borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface, padding: space.lg },
-  hint: { color: colors.textFaint, fontSize: font.small, textAlign: 'center', marginTop: space.sm },
+  centerTitle: { color: colors.text, fontSize: font.h3, fontWeight: '800' },
+  centerBody: { color: colors.textDim, fontSize: font.small, marginTop: space.sm, textAlign: 'center' },
+  strip: {
+    paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.md,
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  addr: { color: colors.text, fontSize: font.small, fontWeight: '700', marginBottom: space.sm },
+  metrics: { flexDirection: 'row', gap: space.md },
+  metric: { flex: 1, minWidth: 0 },
+  metricLabel: { color: colors.textFaint, fontSize: font.tiny, textTransform: 'uppercase', letterSpacing: 0.5 },
+  metricValue: { color: colors.text, fontSize: font.small, fontWeight: '800', marginTop: 1 },
+  actions: {
+    padding: space.lg, paddingTop: space.md,
+    borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface,
+  },
 });

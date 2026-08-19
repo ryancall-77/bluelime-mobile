@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Button, Field, Pill, ErrorText } from '@/components/ui';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { KeyboardLift } from '@/components/KeyboardLift';
+import { useRuns } from '@/lib/runs';
 import { submitUnderwriting, getSubjectSpecs, checkPropertyType } from '@/lib/api';
 import { colors, space, font, radius } from '@/lib/theme';
 
@@ -21,8 +21,9 @@ function toFloatOrNull(s: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function SubmitUnderwritingForm() {
-  const router = useRouter();
+export function SubmitUnderwritingForm({ onSubmitted }: { onSubmitted?: () => void } = {}) {
+  const { track } = useRuns();
+  const [justSubmitted, setJustSubmitted] = useState(false);
   const [address, setAddress] = useState('');
   const [sqft, setSqft] = useState('');
   const [beds, setBeds] = useState('');
@@ -90,19 +91,22 @@ export function SubmitUnderwritingForm() {
         property_type_locked: !!propType,
         salesperson_comments: notes.trim() || null,
       });
-      if (res.queued) {
-        Alert.alert(
-          'Report queued',
-          res.queue_message ||
-            'No agent is available right now — your report is queued and will run automatically as soon as one is. You’ll get a notification when it’s ready.',
-          [{ text: 'OK', onPress: () => router.back() }],
-        );
-        return;
-      }
-      router.replace({
-        pathname: '/underwriting/[id]',
-        params: { id: res.analysis_id, token: res.access_token, address: addr, status: res.status, posted: '0' },
+      // Both branches do the same thing now: register the run and stay put. The old
+      // code either popped an Alert and went back (queued — after which the run was
+      // completely invisible in the app) or router.replace'd onto the report screen,
+      // which destroyed the back entry and TRAPPED the user on a progress page with
+      // nothing else to do. The banner is what replaces both. (Ryan, 2026-08-19.)
+      track({
+        id: res.analysis_id,
+        access_token: res.access_token,
+        address: addr,
+        status: res.queued ? 'queued' : res.status,
       });
+      setAddress(''); setSqft(''); setBeds(''); setBaths(''); setYear('');
+      setPool(false); setNotes(''); setPropType(''); setDetectedType(null); setMfdMessage(null);
+      setJustSubmitted(true);
+      setTimeout(() => setJustSubmitted(false), 8000);
+      onSubmitted?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not submit. Try again.');
     } finally {
@@ -178,7 +182,11 @@ export function SubmitUnderwritingForm() {
       <View style={styles.footer}>
         {error ? <ErrorText>{error}</ErrorText> : null}
         <Button title="Run Underwriting" onPress={submit} loading={busy} />
-        <Text style={styles.foot}>Typically ready in 4–6 minutes. We’ll notify you when it’s done.</Text>
+        <Text style={styles.foot}>
+          {justSubmitted
+            ? 'Running — track it in the bar at the top. You can keep using the app.'
+            : 'Typically ready in 4–6 minutes. We’ll notify you when it’s done.'}
+        </Text>
       </View>
     </KeyboardLift>
   );

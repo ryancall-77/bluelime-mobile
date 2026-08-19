@@ -74,8 +74,31 @@ const HEIGHT_JS = `
 true;
 `;
 
-export function EmbeddedReport({ dealId }: { dealId: string }) {
-  const uri = `${API_BASE}/embed/deal-report/${encodeURIComponent(dealId)}`;
+// Generalised rather than forked, so there is exactly one WebView wrapper, one photo
+// bridge and one navigation allow-rule in the app.
+//
+// mode='measure' (default) is the original behaviour: the page reports its own height,
+// the WebView is sized to it and does not scroll, because on the deal screen this sits
+// mid-page inside an outer native ScrollView.
+//
+// mode='fill' is for a full-screen report: the WebView owns the scroll and fills the
+// screen. That makes the height-ratchet bug class structurally impossible (no measured
+// height to over-report and get stuck at), and stops the comp map panning inside a
+// viewport thousands of points tall.
+export function EmbeddedReport({
+  dealId, path, mode = 'measure', onIntercept, webRef, onHttpError,
+}: {
+  dealId?: string;
+  path?: string;
+  mode?: 'measure' | 'fill';
+  onIntercept?: (url: string) => boolean;   // return true = handled, don't load it
+  webRef?: React.RefObject<WebView | null>;
+  onHttpError?: (status: number, url: string) => void;
+}) {
+  const uri = path
+    ? `${API_BASE}${path}`
+    : `${API_BASE}/embed/deal-report/${encodeURIComponent(dealId ?? '')}`;
+  const fill = mode === 'fill';
   const [height, setHeight] = useState(560);
   const [loading, setLoading] = useState(true);
   const [viewer, setViewer] = useState<PhotoViewerState | null>(null);
@@ -89,7 +112,7 @@ export function EmbeddedReport({ dealId }: { dealId: string }) {
   const onMessage = (e: WebViewMessageEvent) => {
     const raw = e.nativeEvent.data;
     const n = Number(raw);
-    if (Number.isFinite(n) && n > 120) {
+    if (!fill && Number.isFinite(n) && n > 120) {
       settled.current = true;
       setHeight(Math.ceil(n));
       return;
@@ -110,6 +133,9 @@ export function EmbeddedReport({ dealId }: { dealId: string }) {
   // of hijacking the embedded frame. Subresources (images/CSS) are not gated
   // here, so comp photos still load normally.
   const onNav = (req: { url: string; navigationType?: string }) => {
+    // The host screen gets first refusal — it routes app-owned destinations to native
+    // screens instead of letting the WebView follow a link built for a desktop browser.
+    if (onIntercept?.(req.url)) return false;
     if (req.url === uri || req.url.startsWith(`${API_BASE}/embed/`)) return true;
     if (/^(data|blob|about):/.test(req.url)) return true;
     if (/^https?:/.test(req.url)) {
@@ -120,15 +146,17 @@ export function EmbeddedReport({ dealId }: { dealId: string }) {
   };
 
   return (
-    <View style={[styles.wrap, { height }]}>
+    <View style={fill ? styles.fill : [styles.wrap, { height }]}>
       <WebView
+        ref={webRef}
         source={{ uri }}
         originWhitelist={['*']}
-        injectedJavaScript={HEIGHT_JS}
+        {...(fill ? {} : { injectedJavaScript: HEIGHT_JS })}
         onMessage={onMessage}
         onShouldStartLoadWithRequest={onNav}
         onLoadEnd={() => setLoading(false)}
-        scrollEnabled={false}
+        onHttpError={(e) => onHttpError?.(e.nativeEvent.statusCode, e.nativeEvent.url)}
+        scrollEnabled={fill}
         nestedScrollEnabled={false}
         setSupportMultipleWindows={false}
         javaScriptCanOpenWindowsAutomatically={false}
@@ -148,6 +176,7 @@ export function EmbeddedReport({ dealId }: { dealId: string }) {
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1, backgroundColor: '#020617' },
   wrap: { width: '100%', backgroundColor: colors.bg },
   web: { flex: 1, backgroundColor: colors.bg },
   loading: {

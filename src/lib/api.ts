@@ -11,6 +11,7 @@ import type {
   FeedResponse, DealDetailResponse, ProfileResponse, BuyBox, ThreadResponse, ThreadMessage,
   UnderwritingListItem, SubmitUnderwritingBody, SubmitUnderwritingResponse, PublishMarketplaceResponse,
   ThreadListItem, SellerThreadListItem, SellerThreadResponse, OfferListItem,
+  RunStatusRow, AnalysisRow,
 } from './types';
 
 async function authHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
@@ -244,6 +245,28 @@ export const prepareAndPublish = async (
 
 // The public report URL for an analysis (owner-facing full report) — loaded in a WebView.
 export const reportUrl = (accessToken: string) => `${API_BASE}/underwriting/${encodeURIComponent(accessToken)}`;
+
+// Chrome-less owner report for the in-app WebView. Same ReviewClient the website
+// renders, minus the desktop-only CTAs that break inside the app.
+export const embedReportPath = (accessToken: string) =>
+  `/embed/underwriting/${encodeURIComponent(accessToken)}`;
+
+// Public — the access token IS the credential, so no auth header. Called ONCE per
+// mount/focus and NEVER on a timer: this endpoint returns the full row plus every comp
+// and can fire an unmetered Claude call on a cache miss. Poll getRunStatuses instead.
+export async function getAnalysisByToken(accessToken: string): Promise<AnalysisRow> {
+  const res = await fetch(
+    `${API_BASE}/api/underwriting/token/${encodeURIComponent(accessToken)}`,
+    { headers: { Accept: 'application/json' }, cache: 'no-store' },
+  );
+  return parse<AnalysisRow>(res);
+}
+
+// THE poll target for in-flight runs — a few hundred bytes per report.
+export const getRunStatuses = (ids: string[]) =>
+  get<{ analyses: RunStatusRow[] }>(
+    `/api/underwriting/status?ids=${ids.map(encodeURIComponent).join(',')}`,
+  );
 
 // ───────────────────────── Address autocomplete (Google Places, server-proxied) ─────────────
 

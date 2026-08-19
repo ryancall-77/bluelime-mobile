@@ -72,17 +72,24 @@ function dataFrom(resp: Notifications.NotificationResponse | null): PushData | n
 }
 
 /**
- * Fire `onTap(data)` when a notification is tapped (foreground/background) and
- * on cold start (app launched from a push). Returns an unsubscribe fn.
+ * Fire `onTap(data, identifier)` when a notification is tapped (foreground/background)
+ * and on cold start (app launched from a push). Returns an unsubscribe fn.
+ *
+ * The identifier is passed through so callers can suppress replays:
+ * getLastNotificationResponseAsync() re-fires on EVERY subscription, and the root layout
+ * re-subscribes whenever auth state or the router changes. Today that costs a
+ * dismissible browser tab; now that a tap NAVIGATES, an unguarded replay would yank the
+ * user out of whatever they are doing minutes later — indistinguishable from the
+ * auto-open behaviour Ryan explicitly rejected.
  */
-export function onNotificationTap(onTap: (data: PushData) => void): () => void {
+export function onNotificationTap(onTap: (data: PushData, identifier: string) => void): () => void {
   Notifications.getLastNotificationResponseAsync().then((resp) => {
     const d = dataFrom(resp);
-    if (d) onTap(d);
+    if (d) onTap(d, resp?.notification?.request?.identifier ?? '');
   });
   const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
     const d = dataFrom(resp);
-    if (d) onTap(d);
+    if (d) onTap(d, resp?.notification?.request?.identifier ?? '');
   });
   return () => sub.remove();
 }
