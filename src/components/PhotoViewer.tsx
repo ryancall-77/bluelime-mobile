@@ -61,6 +61,18 @@ export function PhotoViewer({
     return () => clearTimeout(t);
   }, [state, start, width]);
 
+  // Page offsets are measured in screen widths, so any change to `width` leaves the
+  // pager parked between two photos. Re-anchor on the CURRENT page whenever the window
+  // resizes. Today that only fires on a split-view/keyboard change; it is also exactly
+  // what makes this viewer correct the moment the app's portrait lock is lifted, so
+  // enabling rotation stays a config change rather than a debugging session.
+  useEffect(() => {
+    if (!state) return;
+    pager.current?.scrollTo({ x: idx * width, y: 0, animated: false });
+    // idx deliberately omitted: this is a resize correction, not a page change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, height, state]);
+
   if (!state || urls.length === 0) return null;
   const many = urls.length > 1;
 
