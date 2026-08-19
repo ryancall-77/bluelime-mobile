@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Screen, Button, Field, Card, ErrorText } from '@/components/ui';
+import { KeyboardLift } from '@/components/KeyboardLift';
 import { makeOffer, getDeal, getProfile } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { readPickedFile, type PickedFile } from '@/lib/upload';
@@ -148,11 +149,7 @@ export default function OfferFlow() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
+      <KeyboardLift>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Field
             label="Offer amount"
@@ -212,7 +209,7 @@ export default function OfferFlow() {
         </ScrollView>
 
         {/* Pinned footer — a plain flex sibling of the ScrollView (not absolute),
-            so KeyboardAvoidingView pushes it up together with the rest of the
+            so KeyboardLift pushes it up together with the rest of the
             column and it never ends up hidden behind the keyboard/QuickType bar
             (Ryan, 2026-08-05). Mirrors deal/[id].tsx's actionBar. */}
         <View style={styles.footer}>
@@ -224,7 +221,7 @@ export default function OfferFlow() {
             <Text style={styles.disabledHint}>Agree to the seller&apos;s terms to submit.</Text>
           ) : null}
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardLift>
     </Screen>
   );
 }

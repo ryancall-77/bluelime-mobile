@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View,
+  Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Screen, Loading, EmptyState } from '@/components/ui';
+import { KeyboardLift } from '@/components/KeyboardLift';
 import { getThread, postThreadMessage, inquire, reportContent, blockCounterparty } from '@/lib/api';
 import { getProfile, getDeal } from '@/lib/api';
 import type { ThreadMessage, DealDetail } from '@/lib/types';
@@ -136,11 +137,9 @@ export default function Messages() {
           </View>
         </View>
       ) : null}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={90}
-        style={{ flex: 1 }}
-      >
+      {/* The address bar above is CONDITIONAL, so the old hardcoded offset of 90
+          was wrong whenever it rendered. KeyboardLift measures instead. */}
+      <KeyboardLift>
         <FlatList
           ref={listRef}
           data={messages}
@@ -180,7 +179,7 @@ export default function Messages() {
             </Pressable>
           </View>
         )}
-      </KeyboardAvoidingView>
+      </KeyboardLift>
     </Screen>
   );
 }

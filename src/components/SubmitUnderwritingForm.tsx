@@ -1,8 +1,9 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button, Field, Pill, ErrorText } from '@/components/ui';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
+import { KeyboardLift } from '@/components/KeyboardLift';
 import { submitUnderwriting, getSubjectSpecs, checkPropertyType } from '@/lib/api';
 import { colors, space, font, radius } from '@/lib/theme';
 
@@ -22,29 +23,6 @@ function toFloatOrNull(s: string): number | null {
 
 export function SubmitUnderwritingForm() {
   const router = useRouter();
-
-  // KeyboardAvoidingView measures its own frame with onLayout, which is
-  // PARENT-relative, then compares it against the keyboard's SCREEN-relative
-  // frame (RN's `_relativeKeyboardHeight`: frame.y + frame.height - keyboardY).
-  // This form's parent is the Tabs scene, which starts below the TopBar header,
-  // so frame.y is 0 while its real screen origin is the header's height -- and
-  // the CTA lifts short by exactly that much (Ryan, 2026-08-18: still behind the
-  // keyboard after the first fix). keyboardVerticalOffset closes the gap, but
-  // the value has to be MEASURED: TopBar is insets.top + 6 + content, and the
-  // /underwriting/new modal route mounts this same form under a completely
-  // different header. So wrap in a view we own and measure where it actually
-  // sits in the window.
-  const rootRef = useRef<View | null>(null);
-  const [kbOffset, setKbOffset] = useState(0);
-  const measureOffset = useCallback(() => {
-    rootRef.current?.measureInWindow((_x, y) => {
-      if (!Number.isFinite(y)) return;
-      // Only commit real movement -- measureInWindow runs on every layout pass
-      // and an unguarded setState here is a render loop.
-      setKbOffset((prev) => (Math.abs(prev - y) > 1 ? y : prev));
-    });
-  }, []);
-
   const [address, setAddress] = useState('');
   const [sqft, setSqft] = useState('');
   const [beds, setBeds] = useState('');
@@ -133,12 +111,7 @@ export function SubmitUnderwritingForm() {
   };
 
   return (
-    <View ref={rootRef} style={styles.flex} onLayout={measureOffset} collapsable={false}>
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={kbOffset}
-    >
+    <KeyboardLift style={styles.flex}>
       <ScrollView
         style={styles.flex}
         contentContainerStyle={styles.content}
@@ -199,7 +172,7 @@ export function SubmitUnderwritingForm() {
       {/* Pinned CTA. It used to be the last thing in the scroll, which meant the
           submitter had to scroll past every field to reach it AND the keyboard sat
           on top of it while the Notes field was focused (Ryan, 2026-08-18, on
-          device). Outside the ScrollView but inside the KeyboardAvoidingView it is
+          device). Outside the ScrollView but inside the KeyboardLift it is
           always reachable and rides above the keyboard. The error lives here too so
           a failed submit can't scroll off-screen. */}
       <View style={styles.footer}>
@@ -207,8 +180,7 @@ export function SubmitUnderwritingForm() {
         <Button title="Run Underwriting" onPress={submit} loading={busy} />
         <Text style={styles.foot}>Typically ready in 4–6 minutes. We’ll notify you when it’s done.</Text>
       </View>
-    </KeyboardAvoidingView>
-    </View>
+    </KeyboardLift>
   );
 }
 

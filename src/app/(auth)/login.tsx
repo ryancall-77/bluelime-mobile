@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { Screen, Button, Field, ErrorText } from '@/components/ui';
+import { KeyboardLift } from '@/components/KeyboardLift';
 import { useAuth } from '@/lib/auth';
 import { colors, font, space } from '@/lib/theme';
 import { EARLY_ACCESS_HEADSTART_MIN } from '@/lib/config';
@@ -53,7 +52,7 @@ export default function Login() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardLift>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.hero}>
             <Image
@@ -117,7 +116,7 @@ export default function Login() {
             <Link href="/(auth)/signup" style={styles.link}>Create an account</Link>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardLift>
     </Screen>
   );
 }

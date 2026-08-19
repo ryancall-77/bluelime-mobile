@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, Button, Field, Pill, ErrorText } from '@/components/ui';
+import { KeyboardLift } from '@/components/KeyboardLift';
 import { getProfile, putBuyBox } from '@/lib/api';
 import { PROPERTY_TYPE_LABELS } from '@/lib/types';
 import type { PropertyTypeBucket, Strategy, AlertMode, BuyBox } from '@/lib/types';
@@ -89,7 +88,7 @@ export default function BuyBoxEditor() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardLift>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.intro}>Tell us what you buy — we&apos;ll match deals and alert you the moment new ones land.</Text>
 
@@ -145,7 +144,7 @@ export default function BuyBoxEditor() {
           <ErrorText>{error}</ErrorText>
           <Button title="Save buy-box" onPress={save} loading={busy} variant="accent" style={{ marginTop: space.lg }} />
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardLift>
     </Screen>
   );
 }

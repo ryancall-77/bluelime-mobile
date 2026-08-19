@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View,
+  Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Screen, Loading, EmptyState } from '@/components/ui';
+import { KeyboardLift } from '@/components/KeyboardLift';
 import { getSellerThread, postSellerThreadMessage, respondToOffer } from '@/lib/api';
 import type { ThreadMessage, ThreadOffer } from '@/lib/types';
 import { colors, font, radius, space } from '@/lib/theme';
@@ -106,7 +107,7 @@ export default function SellerThread() {
   return (
     <Screen>
       <Stack.Screen options={{ title }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90} style={{ flex: 1 }}>
+      <KeyboardLift>
         {offer ? (
           <View style={styles.offerBar}>
             <View style={styles.offerTop}>
@@ -153,7 +154,7 @@ export default function SellerThread() {
             <Text style={styles.sendText}>Send</Text>
           </Pressable>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardLift>
     </Screen>
   );
 }

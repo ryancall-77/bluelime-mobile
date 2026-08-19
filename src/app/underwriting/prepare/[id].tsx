@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView,
+  Alert, Image, Pressable, ScrollView,
   Share, StyleSheet, Switch, Text, View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Button, Field, Loading, Pill } from '@/components/ui';
+import { KeyboardLift } from '@/components/KeyboardLift';
 import { getPreparedListing, prepareAndPublish } from '@/lib/api';
 import { uploadListingPhoto } from '@/lib/upload';
 import { colors, radius, space, font } from '@/lib/theme';
@@ -186,7 +187,7 @@ export default function PrepareListing() {
   if (seeding) return <Loading label="Loading listing details…" />;
 
   return (
-    <KeyboardAvoidingView style={styles.wrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardLift style={styles.wrap}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {params.address ? <Text style={styles.addr}>{params.address}</Text> : null}
 
@@ -353,7 +354,7 @@ export default function PrepareListing() {
         />
         <Text style={styles.footHint}>An offer price is required. Publishing gives you a buyer link to share.</Text>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardLift>
   );
 }
 

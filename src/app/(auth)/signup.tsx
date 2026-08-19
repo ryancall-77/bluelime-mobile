@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { Screen, Button, Field, ErrorText } from '@/components/ui';
+import { KeyboardLift } from '@/components/KeyboardLift';
 import { useAuth } from '@/lib/auth';
 import { colors, font, radius, space } from '@/lib/theme';
 import { TERMS_URL, PRIVACY_URL } from '@/lib/config';
@@ -61,7 +60,7 @@ export default function Signup() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardLift>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <Text style={styles.brand}>Create your account</Text>
           <Text style={styles.tagline}>Free early access — browse verified deals and get alerts.</Text>
@@ -114,7 +113,7 @@ export default function Signup() {
             <Link href="/(auth)/login" style={styles.link}>Log in</Link>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardLift>
     </Screen>
   );
 }
