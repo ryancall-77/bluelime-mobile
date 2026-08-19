@@ -7,6 +7,7 @@ import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Button, Card, Loading, EmptyState } from '@/components/ui';
 import { EmbeddedReport } from '@/components/EmbeddedReport';
+import { PhotoViewer, type PhotoViewerState } from '@/components/PhotoViewer';
 import { getDeal, saveListing, reportContent } from '@/lib/api';
 import type { DealDetailResponse, MoneyLine } from '@/lib/types';
 import { colors, font, radius, space } from '@/lib/theme';
@@ -26,6 +27,9 @@ export default function DealDetail() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [savingBusy, setSavingBusy] = useState(false);
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const [viewer, setViewer] = useState<PhotoViewerState | null>(null);
+  const galleryRef = useRef<ScrollView | null>(null);
 
   // Back-to-top. The full report is embedded below the marketing sections, so a
   // deal page runs to several thousand points and thumb-scrolling back is a
@@ -177,13 +181,54 @@ export default function DealDetail() {
         onScroll={onScroll}
         scrollEventThrottle={64}
       >
-        {/* Photo gallery */}
+        {/* Photo gallery. It was swipeable before but gave no sign of it — no counter,
+            no thumbnails, nothing to tap — so a deal with 30 photos looked like a deal
+            with one (Ryan, 2026-08-19). Now: a counter, a thumbnail strip, and every
+            photo opens the full-screen viewer. */}
         {photos.length > 0 ? (
-          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.gallery}>
-            {photos.map((p, i) => (
-              <Image key={i} source={{ uri: p }} style={styles.galleryImg} contentFit="cover" transition={150} />
-            ))}
-          </ScrollView>
+          <View>
+            <ScrollView
+              ref={galleryRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              style={styles.gallery}
+              onMomentumScrollEnd={(e) =>
+                setPhotoIdx(Math.round(e.nativeEvent.contentOffset.x / width))}
+            >
+              {photos.map((p, i) => (
+                <Pressable key={i} onPress={() => setViewer({ urls: photos, index: i })}>
+                  <Image source={{ uri: p }} style={styles.galleryImg} contentFit="cover" transition={150} />
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            {photos.length > 1 ? (
+              <>
+                <View style={styles.photoCount}>
+                  <Text style={styles.photoCountText}>{photoIdx + 1} / {photos.length}</Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.strip}
+                >
+                  {photos.map((p, i) => (
+                    <Pressable
+                      key={`t${i}`}
+                      onPress={() => {
+                        setPhotoIdx(i);
+                        galleryRef.current?.scrollTo({ x: i * width, y: 0, animated: true });
+                      }}
+                      style={[styles.stripThumb, i === photoIdx && styles.stripThumbOn]}
+                    >
+                      <Image source={{ uri: p }} style={styles.stripImg} contentFit="cover" />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </>
+            ) : null}
+          </View>
         ) : (
           <View style={[styles.galleryImg, styles.center]}>
             <Text style={styles.faint}>No photos</Text>
@@ -340,6 +385,10 @@ export default function DealDetail() {
           <Button title="Make offer" variant="accent" onPress={() => router.push(`/offer/${id}`)} style={{ flex: 1 }} />
         </View>
       )}
+
+      {/* Same viewer the report and comp photos use, so every photo in the app swipes,
+          zooms and rotates identically. */}
+      <PhotoViewer state={viewer} onClose={() => setViewer(null)} />
     </>
   );
 }
@@ -446,6 +495,19 @@ const styles = StyleSheet.create({
   pad: { padding: space.lg },
   center: { alignItems: 'center', justifyContent: 'center' },
   gallery: { height: 240 },
+  photoCount: {
+    position: 'absolute', top: 240 - 30, right: space.md,
+    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: radius.pill,
+    paddingHorizontal: 10, paddingVertical: 3,
+  },
+  photoCountText: { color: colors.white, fontSize: font.tiny, fontWeight: '700' },
+  strip: { paddingHorizontal: space.md, paddingVertical: space.sm, gap: space.sm },
+  stripThumb: {
+    width: 56, height: 42, borderRadius: 6, overflow: 'hidden',
+    borderWidth: 2, borderColor: 'transparent', opacity: 0.6,
+  },
+  stripThumbOn: { borderColor: colors.lime, opacity: 1 },
+  stripImg: { width: '100%', height: '100%' },
   galleryImg: { width, height: 240, backgroundColor: colors.surfaceAlt },
 
   // A bare ☆/⭐ Text glyph had zero contrast against the header's navy

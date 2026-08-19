@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Field, Pill, ErrorText } from '@/components/ui';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { KeyboardLift } from '@/components/KeyboardLift';
@@ -72,6 +72,9 @@ export function SubmitUnderwritingForm({ onSubmitted }: { onSubmitted?: () => vo
   const PROPERTY_TYPES = ['Single Family', 'Condo', 'Townhouse', 'Manufactured', 'Multi-Family', 'Land'];
 
   const submit = async () => {
+    // Drop the keyboard the moment they commit — it has nothing left to edit and it is
+    // covering the screen they are about to be sent to.
+    Keyboard.dismiss();
     const addr = address.trim();
     if (!addr) { setError('Property address is required.'); return; }
     setError(null);
@@ -106,6 +109,8 @@ export function SubmitUnderwritingForm({ onSubmitted }: { onSubmitted?: () => vo
       setPool(false); setNotes(''); setPropType(''); setDetectedType(null); setMfdMessage(null);
       setJustSubmitted(true);
       setTimeout(() => setJustSubmitted(false), 8000);
+      // Navigation is the CALLER's decision: the Submit tab lands on Reports, while the
+      // modal route just dismisses itself. Doing both here would race.
       onSubmitted?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not submit. Try again.');

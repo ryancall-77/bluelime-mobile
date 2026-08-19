@@ -108,8 +108,11 @@ export function RunBanner({
       </Pressable>
 
       {pct != null ? (
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${Math.round(pct * 100)}%`, backgroundColor: tint }]} />
+        <View style={styles.trackWrap}>
+          <View style={styles.track}>
+            <View style={[styles.fill, { width: `${Math.round(pct * 100)}%`, backgroundColor: tint }]} />
+          </View>
+          <Text style={[styles.pctText, { color: tint }]}>{Math.round(pct * 100)}%</Text>
         </View>
       ) : null}
     </View>
@@ -127,6 +130,17 @@ const styles = StyleSheet.create({
   detail: { color: colors.textDim, fontSize: font.tiny, marginTop: 1 },
   close: { paddingHorizontal: 4, paddingVertical: 4 },
   closeText: { color: colors.textFaint, fontSize: 15, fontWeight: '600' },
-  track: { height: 3, backgroundColor: colors.surfaceAlt },
-  fill: { height: 3 },
+  // Deliberately chunky. At 3px on a dark ground the old bar was invisible unless you
+  // went looking for it (Ryan, 2026-08-19); the percentage next to it removes any doubt
+  // that something is actually moving.
+  trackWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: space.sm,
+    paddingHorizontal: space.lg, paddingBottom: space.sm,
+  },
+  track: {
+    flex: 1, height: 8, borderRadius: 4, overflow: 'hidden',
+    backgroundColor: colors.surfaceAlt,
+  },
+  fill: { height: 8, borderRadius: 4 },
+  pctText: { fontSize: font.tiny, fontWeight: '800', minWidth: 34, textAlign: 'right' },
 });
