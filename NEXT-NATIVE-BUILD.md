@@ -49,6 +49,40 @@ useEffect(() => {
 **d. Keep the ⟳ button.** It is still useful for a landscape photo the user does not want
 to physically turn the phone for, and it costs nothing.
 
+## 1b. RESTORE `ascAppId` to eas.json — REMOVED ON PURPOSE, PUT IT BACK
+
+```json
+  "submit": { "production": { "ios": { … , "ascAppId": "6801364590" } } }
+```
+
+Removed 2026-08-21 so build 2 could receive OTA updates again, and it MUST come back
+when this build is cut — without it `eas submit` has no App Store Connect app to
+target.
+
+**Why it had to go.** expo-updates hashes the WHOLE of `eas.json` as a fingerprint
+source (`reasons: ["easBuild"]`). Adding a submit-time setting that has nothing to do
+with the native runtime moved the fingerprint from `4f563724…` to `805d3d44…`, which
+silently severed the OTA channel to build 2 — the only binary anyone has installed.
+Every `eas update` between that commit and 2026-08-21 published to a runtime version
+no device was on. Verified by recomputing the fingerprint with and without the line:
+reverting it reproduces build 2's runtime exactly.
+
+**The trap for next time:** any edit to eas.json — even one the native build could not
+possibly care about — invalidates OTA delivery to every existing install. Batch such
+edits into the commit that cuts a build, never between builds.
+
+## 4. Universal Links (funnel deep-linking, 2026-08-20)
+
+`ios.associatedDomains: ['applinks:realtyzoom.com']` + an AASA route handler serving
+`application/json` with no redirect. The root catch-all already excludes
+`/.well-known/`; only the middleware matcher needs an exclusion.
+
+Needed by the buyer funnel: without it a tapped deal link cannot open the app, and an
+install arriving from the App Store has no memory of which deal or which buyer sent
+them. Note what it does NOT do — it solves re-engagement for people who already have
+the app, and gives nothing on a cold launch after an install. That still needs the
+claim code.
+
 ## 2. Renormalise line endings — do this FIRST, in the same commit
 
 ⚠️ `.gitignore` is still CRLF locally while CI checks out LF, so local and CI compute
