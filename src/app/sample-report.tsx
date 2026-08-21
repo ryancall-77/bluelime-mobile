@@ -13,6 +13,32 @@ import { API_BASE } from '@/lib/config';
 // failure path below matters as much as the happy one.
 const SAMPLE_PATH = '/embed/sample-report';
 
+// The sample's headline figures, read from
+// app/src/app/(marketing)/sample-report/sample-data.json (5301 Wren St, Orlando FL).
+// ⚠️ Re-read these if that snapshot is ever re-cut — a strip that disagrees with the
+// report underneath it is worse than no strip.
+const SAMPLE = {
+  address: '5301 Wren St, Orlando, FL 32807',
+  cashMaoCents: 18_781_927,
+  novationMaoCents: 20_079_652,
+  arvCents: 30_965_908,
+  rehabCents: 3_490_800,
+};
+
+const usd = (cents: number) => '$' + Math.round(cents / 100).toLocaleString();
+
+// Same tints the finished report uses (underwriting/[id].tsx) — Cash MAO lime,
+// Novation blue, Rehab amber. The numbers ARE the product, so they belong above the
+// fold rather than several scrolls into a WebView the reader has to go find.
+function Metric({ label, value, tint }: { label: string; value: string; tint?: string }) {
+  return (
+    <View style={styles.metric}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={[styles.metricValue, tint ? { color: tint } : null]} numberOfLines={1}>{value}</Text>
+    </View>
+  );
+}
+
 export default function SampleReport() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -46,6 +72,19 @@ export default function SampleReport() {
         <Pressable onPress={close} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close sample report">
           <Text style={styles.close}>✕  Close</Text>
         </Pressable>
+      </View>
+
+      {/* The numbers, up top and in the report's own colors. Without this the first
+          screenful of the app's flagship proof artifact is an address and a photo
+          count, and the MAOs — the entire reason to read it — sit below the fold. */}
+      <View style={styles.strip}>
+        <Text style={styles.stripAddr} numberOfLines={1}>{SAMPLE.address}</Text>
+        <View style={styles.metrics}>
+          <Metric label="Cash MAO" value={usd(SAMPLE.cashMaoCents)} tint={colors.lime} />
+          <Metric label="Novation" value={usd(SAMPLE.novationMaoCents)} tint={colors.blue} />
+          <Metric label="ARV" value={usd(SAMPLE.arvCents)} />
+          <Metric label="Rehab" value={usd(SAMPLE.rehabCents)} tint={colors.warn} />
+        </View>
       </View>
 
       <View style={styles.body}>
@@ -104,6 +143,19 @@ export default function SampleReport() {
 }
 
 const styles = StyleSheet.create({
+  strip: {
+    paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.lg,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  stripAddr: { color: colors.text, fontSize: font.body, fontWeight: '700', marginBottom: space.md },
+  metrics: { flexDirection: 'row', gap: space.md },
+  metric: { flex: 1, minWidth: 0 },
+  metricLabel: {
+    color: colors.textFaint, fontSize: font.tiny, textTransform: 'uppercase',
+    letterSpacing: 0.5, marginBottom: 2,
+  },
+  metricValue: { color: colors.text, fontSize: font.body, fontWeight: '800' },
   wrap: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
