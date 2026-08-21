@@ -17,8 +17,58 @@ import { colors } from '@/lib/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-// Redirects between the (auth) and (marketplace)/(underwriting) groups based on session state, and
-// routes a tapped push notification into the deal detail.
+// Routes reachable WITHOUT an account. The app is browsable signed-out — the deal
+// list, a deal detail, its photos, the full underwriting report and the underwrite
+// funnel are the product demo, so a guest gets to see them before being asked for
+// anything (Ryan, 2026-08-20). Everything else — favorites, offers, messaging, the
+// buy-box, prepare/progress — still needs a session.
+//
+// A screen belongs here when it GATES ITSELF: the allowlist and the in-file
+// <SignInPrompt/> are two halves of one decision, and listing only one of them is
+// how the (underwriting) group ended up with four sign-in prompts that could never
+// render (fixed 2026-08-21).
+//
+// `useSegments()` returns the route PATTERN, not the resolved values, so
+// `underwriting/[id]` and `underwriting/new` are distinguishable here even though
+// both are two segments long.
+//
+// Typed as readonly string[] on purpose: the parameter type is a union of route
+// tuples, and comparing that against a literal TS does not know about is a
+// "no overlap" error rather than the `false` we want.
+function isPublicRoute(segments: readonly string[]): boolean {
+  const [first, second] = segments;
+  // '/' itself — index.tsx redirects straight into the marketplace.
+  if (first === undefined) return true;
+  if (first === '(auth)' || first === '(marketplace)') return true;
+  // The whole underwriting group. It gates itself IN-FILE — submit is the public
+  // landing screen and reports/listings/buyers each render <SignInPrompt/> — but
+  // without this line the backstop below redirected a guest before any of those
+  // screens mounted, so every one of those prompts was dead code AND the TopBar's
+  // Deals|Underwrite toggle stranded a signed-out user on a login screen with no
+  // Close and nothing to go back to (everything in that chain uses router.replace,
+  // so canGoBack() was false). `underwriting/new` stays OFF the list below: it is
+  // only ever reached from a signed-in push.
+  if (first === '(underwriting)') return true;
+  if (first === 'deal') return true;
+  if (first === 'terms' || first === '+not-found') return true;
+  // /account gates itself in-file and its GUEST view is load-bearing: it carries the
+  // Support & legal card that proves to App Review that support, the EULA and the
+  // privacy policy are reachable without an account. Redirecting a guest to login
+  // here hid exactly the screen review is looking for.
+  if (first === 'account') return true;
+  // The canned demo report. Open by definition — it is what a brand-new install
+  // is shown BEFORE it has anything of its own.
+  if (first === 'sample-report') return true;
+  // The owner report is credentialed by its access token in the URL, not by a
+  // session — a guest who taps a shared link must be able to open it.
+  if (first === 'underwriting' && second === '[id]') return true;
+  return false;
+}
+
+// Backstop only. The gate no longer bounces a guest off the public routes above —
+// each gated ACTION prompts at the tap (see lib/gate.ts). This still catches a
+// deep link, a restored navigation state, or a sign-out that leaves a guest
+// standing on a genuinely private route.
 function RootNavigator() {
   const { ready, signedIn } = useAuth();
   const segments = useSegments();
@@ -30,9 +80,12 @@ function RootNavigator() {
 
   useEffect(() => {
     if (!ready) return;
-    const inAuthGroup = segments[0] === '(auth)';
-    if (!signedIn && !inAuthGroup) router.replace('/(auth)/login');
-    else if (signedIn && inAuthGroup) router.replace('/(marketplace)');
+    // NOTE: the old `signedIn && inAuthGroup -> /(marketplace)` half is gone. It was
+    // what moved a user into the app after signing in; the auth screens now navigate
+    // themselves (back to whatever the user was doing, else the marketplace), because
+    // a guest can legitimately be SITTING on the login screen with browsing behind it
+    // and must not be yanked off it.
+    if (!signedIn && !isPublicRoute(segments)) router.replace('/(auth)/login');
   }, [ready, signedIn, segments, router]);
 
   // Deep-link a push tap INTO THE APP. This used to call
@@ -102,6 +155,12 @@ function RootNavigator() {
       <Stack.Screen name="seller-thread/[id]" options={{ title: 'Conversation', headerBackTitle: 'Back' }} />
       <Stack.Screen name="buybox" options={{ title: 'Your buy-box', presentation: 'modal' }} />
       <Stack.Screen name="terms" options={{ title: 'Terms', presentation: 'modal' }} />
+      {/* fullScreenModal, not 'modal': the sample is a full web report and the
+          sheet's peek-through + swipe-to-dismiss both fight a scrolling WebView.
+          headerShown false because the screen draws its own Close — a
+          fullScreenModal has no dismiss gesture, so that Close is the only exit
+          and it must not be a navigator button that could be styled away. */}
+      <Stack.Screen name="sample-report" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
     </Stack>
   );
 }

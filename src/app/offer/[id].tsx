@@ -6,22 +6,33 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Screen, Button, Field, Card, ErrorText } from '@/components/ui';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { KeyboardLift } from '@/components/KeyboardLift';
 import { makeOffer, getDeal, getProfile } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { requireAuth } from '@/lib/gate';
 import { readPickedFile, type PickedFile } from '@/lib/upload';
 import { dollarsToCents, fmtUsd } from '@/lib/format';
 import { colors, font, space } from '@/lib/theme';
 
-// Web parity (Ryan, 2026-08-09): every buyer here is already signed in (the
-// root layout hard-gates the whole app), so this never re-asks for name/email
-// like the old version did — it pulls them from the account, same as
-// DealForms.tsx's OfferModal on web. Also matches web on showing the seller's
-// required offer terms with an agree checkbox, gating submit the same way.
+// Web parity (Ryan, 2026-08-09): name/email are never re-asked here — they are
+// pulled from the account, same as DealForms.tsx's OfferModal on web. Also
+// matches web on showing the seller's required offer terms with an agree
+// checkbox, gating submit the same way.
+//
+// That used to be justified by "the root layout hard-gates the whole app". It no
+// longer does — browsing is open (see lib/gate.ts) — but the conclusion is
+// UNCHANGED, and NOT because the endpoint is safe: /api/marketplace/.../make-offer
+// was public-by-design for a storefront form that no longer exists and has since
+// been gated server-side. The real reason is product: an offer is a party to a
+// negotiation — it has to hang off an account the seller can respond to, that the
+// buyer can track, and that carries their POF. Guest name/email fields would
+// manufacture offers attached to nobody. So this screen GATES instead: signed out
+// it is the sign-in prompt (below every hook), and submit re-checks.
 export default function OfferFlow() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { email: authEmail } = useAuth();
+  const { signedIn, email: authEmail } = useAuth();
 
   const [loadingContext, setLoadingContext] = useState(true);
   const [name, setName] = useState('');
@@ -38,6 +49,9 @@ export default function OfferFlow() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
+    // Nothing to prefetch for a guest — getProfile() is authed, and the offer
+    // terms are only worth loading for a form that will actually render.
+    if (!signedIn) { setLoadingContext(false); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -65,7 +79,7 @@ export default function OfferFlow() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, signedIn]);
 
   const cents = dollarsToCents(amount);
   const hasTerms = termLines.length > 0;
@@ -102,6 +116,11 @@ export default function OfferFlow() {
 
   const submit = async () => {
     setError(null);
+    // Second gate. Unreachable through the UI (the guest branch replaces the whole
+    // form), but the submit path must never be the thing that assumes a session:
+    // if this screen is ever reached mid-sign-out, the offer goes nowhere and the
+    // buyer would just watch it fail.
+    if (!requireAuth(signedIn, 'offer')) return;
     if (!canSubmit) return;
     setBusy(true);
     try {
@@ -121,6 +140,12 @@ export default function OfferFlow() {
       setBusy(false);
     }
   };
+
+  // Every early return sits below every hook — the react compiler is on, and a
+  // conditional return above a hook makes it bail silently instead of crashing.
+  // Guest first: no form, no file/photo picker (so no media-permission prompt a
+  // guest can never use), no offer that has nobody to attach to.
+  if (!signedIn) return <Screen><SignInPrompt title="Make an offer" reason="offer" /></Screen>;
 
   if (done) {
     return (

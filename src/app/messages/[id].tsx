@@ -4,15 +4,24 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Screen, Loading, EmptyState } from '@/components/ui';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { KeyboardLift } from '@/components/KeyboardLift';
 import { getThread, postThreadMessage, inquire, reportContent, blockCounterparty } from '@/lib/api';
 import { getProfile, getDeal } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { requireAuth } from '@/lib/gate';
 import type { ThreadMessage, DealDetail } from '@/lib/types';
 import { colors, font, radius, space } from '@/lib/theme';
 import { fmtDate } from '@/lib/format';
 
+// A thread is between two identified parties. The deal fetch behind the address
+// banner is public, so signed out this screen would render a complete, working
+// LOOKING composer over it — a guest could type a whole message to the seller
+// that has no sender, no thread to land in, and no way to send. So it gates at
+// entry, and send() re-checks.
 export default function Messages() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { signedIn } = useAuth();
   const [messages, setMessages] = useState<ThreadMessage[] | null>(null);
   const [interestId, setInterestId] = useState<string | null>(null);
   const [deal, setDeal] = useState<Pick<DealDetail, 'address' | 'city' | 'state' | 'zip' | 'photo'> | null>(null);
@@ -22,7 +31,8 @@ export default function Messages() {
   const listRef = useRef<FlatList>(null);
 
   const load = useCallback(async () => {
-    if (!id) return;
+    // getThread() is authed; a guest would just eat a 401.
+    if (!id || !signedIn) return;
     try {
       const res = await getThread(id);
       setMessages(res.messages ?? []);
@@ -30,7 +40,7 @@ export default function Messages() {
     } catch {
       setMessages([]);
     }
-  }, [id]);
+  }, [id, signedIn]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -38,7 +48,9 @@ export default function Messages() {
   // listing, not the other way around) — a lightweight one-time fetch of the
   // deal, same call offer/[id].tsx already makes, is enough for the banner.
   useEffect(() => {
-    if (!id) return;
+    // getDeal() is public, but the banner only ever appears above the thread — a
+    // guest gets the prompt instead, so don't spend the request.
+    if (!id || !signedIn) return;
     let cancelled = false;
     getDeal(String(id)).then((res) => {
       if (cancelled || !res) return;
@@ -46,11 +58,16 @@ export default function Messages() {
       setDeal({ address, city, state, zip, photo });
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, signedIn]);
 
   const send = async () => {
     const text = draft.trim();
     if (!text || !id || sending || blocked) return;
+    // Second gate, ahead of the optimistic bubble: unreachable through the UI (the
+    // guest branch replaces the composer), but a send that 401s after the bubble
+    // has already appeared is exactly the "typed a message that can never send"
+    // failure this screen is being fixed for.
+    if (!requireAuth(signedIn, 'message')) return;
     setSending(true);
     const optimistic: ThreadMessage = { id: `tmp-${Date.now()}`, sender: 'buyer', body: text, created_at: new Date().toISOString() };
     setMessages((m) => [...(m ?? []), optimistic]);
@@ -113,6 +130,14 @@ export default function Messages() {
     ]);
   };
 
+  // Both early returns sit below every hook — the react compiler is on, and a
+  // conditional return above a hook makes it bail silently instead of crashing.
+  // Guest first, so they never sit on a spinner for a fetch that never runs.
+  // edges matches the signed-in branch below — this route keeps its native header,
+  // so a 'top' edge would pad for a status bar the header already covers.
+  if (!signedIn) {
+    return <Screen edges={['left', 'right']}><SignInPrompt title="Message the seller" reason="message" /></Screen>;
+  }
   if (messages === null) return <Loading label="Loading messages…" />;
 
   const cityState = [deal?.city, deal?.state].filter(Boolean).join(', ');

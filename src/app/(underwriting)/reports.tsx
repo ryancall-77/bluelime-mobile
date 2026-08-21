@@ -2,7 +2,9 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Button, EmptyState, Loading, VerifiedBadge } from '@/components/ui';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { listUnderwritings } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import type { UnderwritingListItem, UnderwritingStatus } from '@/lib/types';
 import { fmtUsdShort } from '@/lib/format';
 import { colors, radius, space, font } from '@/lib/theme';
@@ -66,6 +68,7 @@ function Row({ item, onPress, onPush }: { item: UnderwritingListItem; onPress: (
 
 export default function MyDeals() {
   const router = useRouter();
+  const { signedIn } = useAuth();
   const { track } = useRuns();
   const [items, setItems] = useState<UnderwritingListItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -79,6 +82,8 @@ export default function MyDeals() {
   }, [items, query]);
 
   const load = useCallback(async (isRefresh = false) => {
+    // listUnderwritings() is org-scoped and authed; a guest would just eat a 401.
+    if (!signedIn) return;
     if (isRefresh) setRefreshing(true);
     try {
       const res = await listUnderwritings();
@@ -88,11 +93,17 @@ export default function MyDeals() {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [signedIn]);
 
   // Refresh on focus so a just-submitted deal (and status changes) show up.
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // Both early returns sit below every hook — the react compiler is on, and a
+  // conditional return above a hook makes it bail silently instead of crashing.
+  // The guest branch returns INSTEAD of the wrap <View>, which is also how the
+  // "New Underwriting" FAB gets suppressed: it lives inside that wrapper, and a
+  // floating button that can only ever bounce to login is worse than no button.
+  if (!signedIn) return <SignInPrompt title="Underwrite your own deals" reason="underwrite" />;
   if (items === null) return <Loading label="Loading your underwritings…" />;
 
   return (

@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, Button, Field, Pill, ErrorText } from '@/components/ui';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { KeyboardLift } from '@/components/KeyboardLift';
+import { useAuth } from '@/lib/auth';
 import { getProfile, putBuyBox } from '@/lib/api';
 import { PROPERTY_TYPE_LABELS } from '@/lib/types';
 import type { PropertyTypeBucket, Strategy, AlertMode, BuyBox } from '@/lib/types';
@@ -18,8 +20,13 @@ const ALERT_MODES: { key: AlertMode; label: string }[] = [
   { key: 'instant', label: 'Instant' }, { key: 'digest', label: 'Daily digest' }, { key: 'off', label: 'Off' },
 ];
 
+// The buy-box IS the account — markets, price band and alert mode are stored on
+// the buyer profile and read back by the alert matcher, so there is nothing a
+// guest could usefully do here. Signed out this screen is the sign-in prompt
+// rather than a blank editor whose Save can only 401 after the typing is done.
 export default function BuyBoxEditor() {
   const router = useRouter();
+  const { signedIn } = useAuth();
   const [marketInput, setMarketInput] = useState('');
   const [markets, setMarkets] = useState<string[]>([]);
   const [priceMin, setPriceMin] = useState('');
@@ -33,6 +40,9 @@ export default function BuyBoxEditor() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // getProfile() is authed — a guest would only eat a 401 and land on a blank
+    // editor. The prompt below renders instead, so nothing needs loading.
+    if (!signedIn) { setLoaded(true); return; }
     getProfile()
       .then((res) => {
         const b = res.buy_box;
@@ -48,7 +58,7 @@ export default function BuyBoxEditor() {
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
-  }, []);
+  }, [signedIn]);
 
   const addMarket = () => {
     const m = marketInput.trim();
@@ -84,6 +94,11 @@ export default function BuyBoxEditor() {
     }
   };
 
+  // Both early returns sit below every hook — the react compiler is on, and a
+  // conditional return above a hook makes it bail silently instead of crashing.
+  // Guest first: they must never see the editor, let alone fill it in.
+  // EmptyState (inside SignInPrompt) is already flex:1 and centered — no wrapper.
+  if (!signedIn) return <Screen><SignInPrompt title="Set your buy-box" reason="buybox" /></Screen>;
   if (!loaded) return <Screen><View style={styles.center}><Text style={styles.dim}>Loading…</Text></View></Screen>;
 
   return (

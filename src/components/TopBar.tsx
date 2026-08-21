@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, space, font } from '@/lib/theme';
 import { getLastUnderwritingTab } from '@/lib/lastTab';
+import { useAuth } from '@/lib/auth';
 
 // Shared top bar for both top-level modes: the RealtyZoom lockup on the left,
 // with the Marketplace / Underwriting toggle and the profile avatar pushed to
@@ -30,10 +31,17 @@ type Mode = 'marketplace' | 'underwriting';
 export function TopBar({ active }: { active: Mode }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { signedIn } = useAuth();
 
   const go = (mode: Mode) => {
     if (mode === active) return;
     if (mode === 'marketplace') { router.replace('/(marketplace)'); return; }
+    // A guest goes straight to Submit and never to the stored tab. Submit is the
+    // public underwrite landing screen; Reports/Listings/Buyers can only render a
+    // sign-in prompt for them, and the stored tab is whatever they were on before
+    // they signed OUT — so honouring it would greet a signed-out user with
+    // "Work your buyers in one place" and nothing else.
+    if (!signedIn) { router.replace('/(underwriting)/submit'); return; }
     // (underwriting) is a route group with no index screen, so navigating to the
     // bare group path is an unmatched route — target the tray tab they were
     // last on (first time ever: Submit, the leftmost tab). (Ryan, 2026-08-09)
@@ -85,6 +93,12 @@ export function TopBar({ active }: { active: Mode }) {
         </Pressable>
       </View>
 
+      {/* Plain push, NOT requireAuth. account.tsx already renders a full guest view
+          — create-account / log-in CTAs plus the Support & legal card that is our
+          standing evidence for App Review that support, the EULA and the privacy
+          policy are reachable WITHOUT signing in. Gating the tap would replace that
+          with a bare login form and hide the very thing review looks for. The screen
+          is on the root allowlist so the backstop redirect leaves it alone. */}
       <Pressable
         onPress={() => router.push('/account')}
         hitSlop={10}

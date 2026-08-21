@@ -8,7 +8,7 @@ import { UploadType, type File } from 'expo-file-system';
 import { API_BASE } from './config';
 import { getAccessToken } from './supabase';
 import type {
-  FeedResponse, DealDetailResponse, ProfileResponse, BuyBox, ThreadResponse, ThreadMessage,
+  FeedDeal, FeedResponse, DealDetailResponse, ProfileResponse, BuyBox, ThreadResponse, ThreadMessage,
   UnderwritingListItem, SubmitUnderwritingBody, SubmitUnderwritingResponse, PublishMarketplaceResponse,
   ThreadListItem, SellerThreadListItem, SellerThreadResponse, OfferListItem,
   RunStatusRow, AnalysisRow,
@@ -47,6 +47,28 @@ async function send<T>(path: string, method: string, body?: unknown): Promise<T>
 
 // GET /api/marketplace/feed → deals matching the buyer's buy-box.
 export const getFeed = () => get<FeedResponse>('/api/marketplace/feed');
+
+// The signed-OUT board. /api/marketplace/feed 401s by design (it is buy-box
+// matched, and there is no buy-box without an account) and must stay that way;
+// /api/marketplace/search is the public endpoint the web board already runs on.
+//
+// The {items} → {deals} rename happens HERE, once, so the screen calls one or the
+// other and is otherwise identical. Branching on the shape inside the screen is
+// the trap: the next field added to FeedDeal would get wired to whichever path the
+// author had open and silently no-op for the other audience — the "two features,
+// one key" shape this codebase has been bitten by before.
+interface SearchResponse {
+  // `address` here is the FULL one-line address; `street` is the street line on
+  // its own, which is what /feed puts in `address` and what DealCard expects
+  // above its separate city/state line.
+  items: (FeedDeal & { street?: string | null })[];
+}
+export async function getPublicFeed(): Promise<FeedResponse> {
+  const res = await get<SearchResponse>(
+    '/api/marketplace/search?status=active&sort=profit&coords=1&limit=100',
+  );
+  return { deals: (res.items ?? []).map((it) => ({ ...it, address: it.street || it.address })) };
+}
 
 // GET /api/marketplace/deal/[id] → full detail + report.
 export const getDeal = (id: string) =>

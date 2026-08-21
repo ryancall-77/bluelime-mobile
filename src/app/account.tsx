@@ -14,7 +14,7 @@ import { BUILD_TAG } from '@/lib/buildTag';
 
 export default function Account() {
   const router = useRouter();
-  const { email, signOut } = useAuth();
+  const { email, signedIn, signOut } = useAuth();
   const [profile, setProfile] = useState<BuyerProfile | null>(null);
   const [box, setBox] = useState<BuyBox | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -27,6 +27,8 @@ export default function Account() {
   const [savingProfile, setSavingProfile] = useState(false);
 
   const load = useCallback(async () => {
+    // getProfile() is an authed endpoint; a guest would just eat a 401.
+    if (!signedIn) return;
     try {
       const res = await getProfile();
       setProfile(res.profile);
@@ -39,7 +41,7 @@ export default function Account() {
     } finally {
       setLoaded(true);
     }
-  }, []);
+  }, [signedIn]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -103,6 +105,54 @@ export default function Account() {
       ],
     );
   };
+
+  // The GUEST variant. It sits below every hook — the react compiler is on, and a
+  // conditional return above a hook makes it bail silently instead of crashing —
+  // and above the `loaded` check, because load() no-ops for a guest and would
+  // otherwise strand them on a spinner forever.
+  //
+  // Two things are load-bearing here. Nothing account-shaped is rendered: no
+  // "Signed in as", no Sign out, no Delete account — all three are meaningless or
+  // actively alarming without a session. And the Support & legal card plus the
+  // build tag are carried over UNCHANGED, because App Review reaches this screen
+  // without signing in and those links are the standing evidence that support,
+  // the EULA and the privacy policy are reachable to every user.
+  if (!signedIn) {
+    return (
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <Card style={{ marginBottom: space.lg }}>
+          <Text style={styles.value}>Create a free account</Text>
+          <Text style={styles.sub}>
+            Browsing is open to everyone. An account is what lets you save deals, set a buy-box
+            and get alerted the moment a matching deal lands, make offers, message sellers, and
+            run your own underwriting.
+          </Text>
+          <Button
+            title="Create free account"
+            variant="accent"
+            onPress={() => router.push({ pathname: '/(auth)/signup', params: { reason: 'account' } })}
+            style={{ marginTop: space.lg }}
+          />
+          <Button
+            title="Log in"
+            variant="outline"
+            onPress={() => router.push({ pathname: '/(auth)/login', params: { reason: 'account' } })}
+            style={{ marginTop: space.md }}
+          />
+        </Card>
+
+        <SectionTitle>Support & legal</SectionTitle>
+        <Card style={{ marginBottom: space.lg }}>
+          <LinkRow label="Contact support" onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)} />
+          <LinkRow label="Terms & EULA" onPress={() => WebBrowser.openBrowserAsync(TERMS_URL)} />
+          <LinkRow label="Privacy Policy" onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)} last />
+        </Card>
+
+        <Text style={styles.footer}>RealtyZoom Deals · buyer app</Text>
+        <Text style={styles.footer}>{BUILD_TAG}</Text>
+      </ScrollView>
+    );
+  }
 
   if (!loaded) return <Loading />;
 

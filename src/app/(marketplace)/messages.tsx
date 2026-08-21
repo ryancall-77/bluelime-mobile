@@ -2,7 +2,9 @@ import React, { useCallback, useState } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { EmptyState, Loading, Button } from '@/components/ui';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { listThreads } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import type { ThreadListItem } from '@/lib/types';
 import { fmtDate } from '@/lib/format';
 import { colors, font, radius, space } from '@/lib/theme';
@@ -11,10 +13,13 @@ import { colors, font, radius, space } from '@/lib/theme';
 // about. Tap → the thread (per-listing). Unread = seller messages not yet read.
 export default function Messages() {
   const router = useRouter();
+  const { signedIn } = useAuth();
   const [threads, setThreads] = useState<ThreadListItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
+    // listThreads() is an authed endpoint; a guest would just eat a 401.
+    if (!signedIn) return;
     if (isRefresh) setRefreshing(true);
     try {
       const res = await listThreads();
@@ -24,10 +29,14 @@ export default function Messages() {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [signedIn]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // Both early returns sit below every hook — the react compiler is on, and a
+  // conditional return above a hook makes it bail silently instead of crashing.
+  // Guest first, so they never sit on a spinner for a fetch that never runs.
+  if (!signedIn) return <SignInPrompt title="Message sellers directly" reason="message" />;
   if (threads === null) return <Loading label="Loading your messages…" />;
 
   return (

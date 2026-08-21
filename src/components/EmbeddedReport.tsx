@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as WebBrowser from 'expo-web-browser';
@@ -85,8 +85,26 @@ true;
 // screen. That makes the height-ratchet bug class structurally impossible (no measured
 // height to over-report and get stuck at), and stops the comp map panning inside a
 // viewport thousands of points tall.
+
+/**
+ * Why the load can end without ever painting:
+ *  - 'error'   — the WebView reported a load failure (DNS, TLS, refused, offline).
+ *  - 'crash'   — the web content process died (onRenderProcessGone on Android,
+ *                onContentProcessDidTerminate on iOS). Leaves a blank frame behind.
+ *  - 'timeout' — the watchdog. This is the one that matters most: a captive portal
+ *                or a tunnel gives no callback AT ALL, the WebView just sits there,
+ *                and onLoadEnd — the only loading terminator this component used to
+ *                have — never fires. The result was an indefinite spinner over a
+ *                navy rectangle with nothing to tap.
+ */
+export type EmbedFailure = 'error' | 'crash' | 'timeout';
+
+// Generous: a cold report with a comp map and photos is genuinely slow on 3G, and a
+// false "couldn't load" on a report that was 2s from painting is worse than waiting.
+const WATCHDOG_MS = 12_000;
+
 export function EmbeddedReport({
-  dealId, path, mode = 'measure', onIntercept, webRef, onHttpError,
+  dealId, path, mode = 'measure', onIntercept, webRef, onHttpError, onFailed,
 }: {
   dealId?: string;
   path?: string;
@@ -94,6 +112,15 @@ export function EmbeddedReport({
   onIntercept?: (url: string) => boolean;   // return true = handled, don't load it
   webRef?: React.RefObject<WebView | null>;
   onHttpError?: (status: number, url: string) => void;
+  /**
+   * Opt-in. The HOST renders the error state — this component only reports, because
+   * what "couldn't load" should say and offer differs per screen (the deal screen has
+   * a whole native page around its embed; the sample modal has nothing else at all).
+   *
+   * Passing it is also what ARMS the watchdog, so a host that doesn't handle failure
+   * keeps exactly its previous behaviour. Retry by remounting: bump a `key`.
+   */
+  onFailed?: (reason: EmbedFailure, description?: string) => void;
 }) {
   const uri = path
     ? `${API_BASE}${path}`
@@ -103,6 +130,33 @@ export function EmbeddedReport({
   const [loading, setLoading] = useState(true);
   const [viewer, setViewer] = useState<PhotoViewerState | null>(null);
   const settled = useRef(false);
+  // Refs, not state: these are read from a timer and from native callbacks that can
+  // fire in either order, and none of them should cause a re-render on their own.
+  const loaded = useRef(false);
+  const failed = useRef(false);
+
+  // Report the first failure and stop the spinner. Latched — onError and onLoadEnd
+  // both fire for a failed load, and a crashed content process can report twice.
+  const fail = (reason: EmbedFailure, description?: string) => {
+    if (failed.current) return;
+    failed.current = true;
+    setLoading(false);
+    onFailed?.(reason, description);
+  };
+
+  // Armed only when the host handles failure (see onFailed). Cleared on unmount, so
+  // a user who backs out mid-load is never reported against.
+  const watched = !!onFailed;
+  useEffect(() => {
+    if (!watched) return;
+    const t = setTimeout(() => {
+      if (!loaded.current && !failed.current) fail('timeout');
+    }, WATCHDOG_MS);
+    return () => clearTimeout(t);
+    // Deps are deliberately just `watched`: adding `fail` (re-created every render)
+    // would restart the clock on every re-render, which is a watchdog that never
+    // barks. It closes over refs and the mount-time onFailed, which is all it needs.
+  }, [watched]);
 
   // Two kinds of message: a bare NUMBER (content height, see HEIGHT_JS) and a JSON
   // envelope. The report posts {type:'bluelime:photos'} instead of opening its own
@@ -154,8 +208,13 @@ export function EmbeddedReport({
         {...(fill ? {} : { injectedJavaScript: HEIGHT_JS })}
         onMessage={onMessage}
         onShouldStartLoadWithRequest={onNav}
-        onLoadEnd={() => setLoading(false)}
+        onLoadEnd={() => { loaded.current = true; setLoading(false); }}
         onHttpError={(e) => onHttpError?.(e.nativeEvent.statusCode, e.nativeEvent.url)}
+        onError={(e) => fail('error', e.nativeEvent.description)}
+        // Android and iOS respectively. Both leave a blank frame that never recovers
+        // on its own, and neither was wired at all before.
+        onRenderProcessGone={() => fail('crash')}
+        onContentProcessDidTerminate={() => fail('crash')}
         scrollEnabled={fill}
         nestedScrollEnabled={false}
         setSupportMultipleWindows={false}

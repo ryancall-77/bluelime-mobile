@@ -9,6 +9,9 @@ import { Button, Card, Loading, EmptyState } from '@/components/ui';
 import { EmbeddedReport } from '@/components/EmbeddedReport';
 import { PhotoViewer, type PhotoViewerState } from '@/components/PhotoViewer';
 import { getDeal, saveListing, reportContent } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { requireAuth } from '@/lib/gate';
+import { API_BASE } from '@/lib/config';
 import type { DealDetailResponse, MoneyLine } from '@/lib/types';
 import { colors, font, radius, space } from '@/lib/theme';
 import { fmtUsd, fmtBedBath, fmtCityState, fmtDate } from '@/lib/format';
@@ -19,10 +22,16 @@ const { width } = Dimensions.get('window');
 // hero + metrics, photo gallery, the Flip and Rent number boxes, a trust strip, the
 // seller marketing sections, a call/text contact line, and the full verified report
 // (condition + rehab + comps). Same data source (/api/marketplace/deal/[id]).
+//
+// Fully OPEN signed-out. /api/marketplace/deal/[id] and /embed/deal-report/[id] are
+// both public, so a guest sees the whole page — hero, every photo, the Flip/Rent
+// boxes, the trust strip and the entire verified report. This IS the demo. Only the
+// four ACTIONS (save, message, offer, report) route through requireAuth().
 
 export default function DealDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { signedIn } = useAuth();
   const [data, setData] = useState<DealDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -60,6 +69,9 @@ export default function DealDetail() {
 
   const toggleSave = async () => {
     if (!id) return;
+    // Before the optimistic flip, not after: a guest must not see the star fill in
+    // and then silently un-fill when saveListing 401s.
+    if (!requireAuth(signedIn, 'save')) return;
     const next = !saved;
     setSaved(next);
     setSavingBusy(true);
@@ -74,6 +86,9 @@ export default function DealDetail() {
   };
 
   const report = () => {
+    // Ahead of the confirm dialog — a guest who taps through "Report" would only
+    // reach a 401, and a report with no account behind it is not actionable anyway.
+    if (!requireAuth(signedIn, 'report')) return;
     Alert.alert(
       'Report this listing',
       'Flag this deal for review by the RealtyZoom team (fraud, inaccurate, or objectionable content).',
@@ -93,6 +108,21 @@ export default function DealDetail() {
         },
       ],
     );
+  };
+
+  // The embedded report is the WEBSITE's report, and its chrome carries desktop links
+  // (Dashboard / Log in / Sign up). Handing one to the in-app browser can only ever
+  // produce the website's login form — a WebView page's own fetches cannot inherit the
+  // app's per-request Bearer and the in-app browser carries no cookie — which is
+  // exactly the dead end underwriting/[id].tsx already swallows. Here the intent is
+  // worth keeping, so a guest gets the NATIVE account flow instead of a dead tap; for
+  // a signed-in user requireAuth() is a no-op and the link is simply dropped.
+  const onReportIntercept = (url: string) => {
+    if (/^https?:\/\/[^/]+\/(dashboard|login|signup)(\/|\?|$)/.test(url) || url === `${API_BASE}/`) {
+      requireAuth(signedIn, 'account');
+      return true;
+    }
+    return false;
   };
 
   if (error && !data) {
@@ -356,7 +386,7 @@ export default function DealDetail() {
             // embedded web report spans the entire screen width instead of sitting in a
             // narrow center column. The web report supplies its own (small) gutter.
             <View style={{ marginTop: space.lg, marginHorizontal: -space.lg }}>
-              <EmbeddedReport dealId={id} />
+              <EmbeddedReport dealId={id} onIntercept={onReportIntercept} />
             </View>
           )}
 
@@ -378,11 +408,24 @@ export default function DealDetail() {
         </View>
       ) : null}
 
-      {/* Sticky action bar */}
+      {/* Sticky action bar. Shown to guests too — the prompt belongs at the tap, not
+          in place of the buttons, so the app never looks like it does less than it
+          does. Both destinations gate themselves as well; this is the first of the
+          two so a guest never watches a modal open just to be told to sign in. */}
       {accepting && (
         <View style={styles.actionBar}>
-          <Button title="Message seller" variant="outline" onPress={() => router.push(`/messages/${id}`)} style={{ flex: 1 }} />
-          <Button title="Make offer" variant="accent" onPress={() => router.push(`/offer/${id}`)} style={{ flex: 1 }} />
+          <Button
+            title="Message seller"
+            variant="outline"
+            onPress={() => { if (requireAuth(signedIn, 'message')) router.push(`/messages/${id}`); }}
+            style={{ flex: 1 }}
+          />
+          <Button
+            title="Make offer"
+            variant="accent"
+            onPress={() => { if (requireAuth(signedIn, 'offer')) router.push(`/offer/${id}`); }}
+            style={{ flex: 1 }}
+          />
         </View>
       )}
 

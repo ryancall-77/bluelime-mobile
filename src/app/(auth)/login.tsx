@@ -1,21 +1,43 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { Screen, Button, Field, ErrorText } from '@/components/ui';
 import { KeyboardLift } from '@/components/KeyboardLift';
 import { useAuth } from '@/lib/auth';
 import { colors, font, space } from '@/lib/theme';
 import { EARLY_ACCESS_HEADSTART_MIN } from '@/lib/config';
+import { GATE_COPY, type GateReason } from '@/lib/gate';
 
 export default function Login() {
   const { signIn, configured, resetPassword } = useAuth();
+  const router = useRouter();
+  // Set when the user was pushed here by a gated tap rather than arriving at
+  // launch. It selects the headline copy — it no longer decides whether an exit
+  // exists (see `close` below).
+  const { reason } = useLocalSearchParams<{ reason?: GateReason }>();
+  const gateCopy = reason ? GATE_COPY[reason] : null;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+
+  // The way out. This used to render only when a `reason` param was present, on
+  // the theory that a param-less arrival meant login WAS the first screen. That
+  // stopped being true when the root navigator gained a BACKSTOP redirect: it
+  // sends a guest here with no params at all, and because every hop in that chain
+  // uses router.replace, canGoBack() is false too — so the user got a login screen
+  // with no Close, no back gesture, and no way back into an app they were browsing
+  // a moment earlier. Browsing is public now, so there is ALWAYS somewhere to go.
+  //
+  // canGoBack() is read here, in an event handler, not during render — the react
+  // compiler is on and navigation state is not a render input.
+  const close = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(marketplace)');
+  };
 
   const onSubmit = async () => {
     setError(null);
@@ -24,6 +46,12 @@ export default function Login() {
     setBusy(true);
     try {
       await signIn(email, password);
+      // The root gate used to do this. It cannot any more: (auth) is a public
+      // group now, so "signed in and standing on login" is no longer proof that
+      // the user needs moving. Go back to whatever they were browsing, and only
+      // fall through to the marketplace when login WAS the first screen.
+      if (router.canGoBack()) router.back();
+      else router.replace('/(marketplace)');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign in failed');
     } finally {
@@ -54,6 +82,10 @@ export default function Login() {
     <Screen>
       <KeyboardLift>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+          <Pressable onPress={close} hitSlop={8} style={styles.closeRow} accessibilityRole="button">
+            <Text style={styles.closeText}>✕  Close</Text>
+          </Pressable>
+
           <View style={styles.hero}>
             <Image
               source={require('../../../assets/images/brand-wide.png')}
@@ -64,7 +96,7 @@ export default function Login() {
             <Text style={styles.tagline}>Verified off-market deals. Real numbers up front.</Text>
             <View style={styles.headsUp}>
               <Text style={styles.headsUpText}>
-                App users get every new deal a {EARLY_ACCESS_HEADSTART_MIN}-minute head start.
+                {gateCopy ?? `App users get every new deal a ${EARLY_ACCESS_HEADSTART_MIN}-minute head start.`}
               </Text>
             </View>
           </View>
@@ -113,7 +145,12 @@ export default function Login() {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>New to RealtyZoom? </Text>
-            <Link href="/(auth)/signup" style={styles.link}>Create an account</Link>
+            {/* replace, not push: pushing stacks a second auth screen, so signing
+                up there would router.back() onto THIS form instead of onto
+                whatever the user was doing before the gate fired. */}
+            <Link replace href={{ pathname: '/(auth)/signup', params: reason ? { reason } : {} }} style={styles.link}>
+              Create an account
+            </Link>
           </View>
         </ScrollView>
       </KeyboardLift>
@@ -123,6 +160,8 @@ export default function Login() {
 
 const styles = StyleSheet.create({
   container: { padding: space.xl, paddingTop: space.xxl, flexGrow: 1, justifyContent: 'center' },
+  closeRow: { alignSelf: 'flex-start', marginBottom: space.lg, paddingVertical: 4 },
+  closeText: { color: colors.textDim, fontSize: font.body, fontWeight: '600' },
   hero: { marginBottom: space.xxl },
   brand: { color: colors.text, fontSize: 34, fontWeight: '800' },
   brandLogo: { width: 220, height: 55, alignSelf: 'center' },

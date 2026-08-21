@@ -2,7 +2,9 @@ import React, { useCallback, useState } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { EmptyState, Loading, Button } from '@/components/ui';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { listOffers } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import type { OfferListItem } from '@/lib/types';
 import { fmtUsd } from '@/lib/format';
 import { colors, font, radius, space } from '@/lib/theme';
@@ -32,11 +34,14 @@ function splitTermLines(raw: string | null): string[] {
 
 export default function Offers() {
   const router = useRouter();
+  const { signedIn } = useAuth();
   const [offers, setOffers] = useState<OfferListItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const load = useCallback(async (isRefresh = false) => {
+    // listOffers() is an authed endpoint; a guest would just eat a 401.
+    if (!signedIn) return;
     if (isRefresh) setRefreshing(true);
     try {
       const res = await listOffers();
@@ -46,7 +51,7 @@ export default function Offers() {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [signedIn]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -58,6 +63,11 @@ export default function Offers() {
     });
   };
 
+  // Both early returns sit below every hook — the react compiler is on, and a
+  // conditional return above a hook makes it bail silently instead of crashing.
+  // Guest first: "No offers yet" would be a truthful answer to a question they
+  // were never able to ask, and it hides that an account is what's missing.
+  if (!signedIn) return <SignInPrompt title="Track your offers" reason="offer" />;
   if (offers === null) return <Loading label="Loading your offers…" />;
 
   return (

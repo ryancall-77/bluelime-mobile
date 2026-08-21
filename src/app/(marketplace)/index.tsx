@@ -4,12 +4,14 @@ import MapView, { Marker, PROVIDER_DEFAULT, type Region } from 'react-native-map
 import { useRouter, useFocusEffect } from 'expo-router';
 import { DealCard } from '@/components/DealCard';
 import { Button, EmptyState, Loading } from '@/components/ui';
-import { getFeed } from '@/lib/api';
+import { getFeed, getPublicFeed } from '@/lib/api';
 import type { FeedDeal } from '@/lib/types';
 import { fmtUsdShort } from '@/lib/format';
 import { colors, font, radius, space } from '@/lib/theme';
 import { EARLY_ACCESS_HEADSTART_MIN } from '@/lib/config';
 import { consumeNeedsBuyBox } from '@/lib/onboarding';
+import { useAuth } from '@/lib/auth';
+import { promptSignUp, requireAuth } from '@/lib/gate';
 
 // Continental-US fallback when no deal has coordinates yet.
 const US_REGION: Region = { latitude: 39.5, longitude: -98.35, latitudeDelta: 32, longitudeDelta: 40 };
@@ -34,17 +36,21 @@ function regionFor(deals: FeedDeal[]): Region {
 
 export default function Search() {
   const router = useRouter();
+  const { signedIn } = useAuth();
   const [deals, setDeals] = useState<FeedDeal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [view, setView] = useState<'map' | 'list'>('map');
   const [query, setQuery] = useState('');
 
+  // Signed in → the buy-box-matched feed. Signed out → the public board. Both
+  // return { deals }: getPublicFeed does the envelope rename in api.ts precisely
+  // so nothing downstream of here has to know which one ran.
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     setError(null);
     try {
-      const res = await getFeed();
+      const res = signedIn ? await getFeed() : await getPublicFeed();
       setDeals(res.deals ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load deals');
@@ -52,7 +58,7 @@ export default function Search() {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [signedIn]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -61,12 +67,30 @@ export default function Search() {
   // idea the gear icon is what fixes it (Ryan, 2026-08-12). Consume-once, so a
   // user who dismisses it is never nagged again.
   useEffect(() => {
+    if (!signedIn) return;
     let cancelled = false;
     consumeNeedsBuyBox().then((needs) => {
       if (!cancelled && needs) router.push('/buybox');
     });
     return () => { cancelled = true; };
-  }, [router]);
+  }, [router, signedIn]);
+
+  // The buy-box is an account feature, so a guest tapping ⚙︎ or "Set up buy-box"
+  // gets the prompt instead of a modal that could not save anything.
+  const openBuyBox = useCallback(() => {
+    if (requireAuth(signedIn, 'buybox')) router.push('/buybox');
+  }, [signedIn, router]);
+
+  // Same destination, different door. The empty-state button and the feed banner
+  // both LABEL themselves "Create a free account", and both used to hand the tap
+  // to requireAuth — which lands on Log IN. A brand-new user reads their own
+  // button's promise, gets a password field for an account they do not have, and
+  // has to find the small link at the bottom. promptSignUp goes where the label
+  // said it would; the signup screen still links back to Log in for the minority
+  // who already have one.
+  const openSignUp = useCallback((reason: 'buybox' | 'alerts') => {
+    promptSignUp(signedIn, reason);
+  }, [signedIn]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -80,7 +104,9 @@ export default function Search() {
     [filtered],
   );
 
-  if (deals === null) return <Loading label="Finding your matches…" />;
+  // Below every hook, deliberately — the react compiler is on and an early return
+  // above a hook makes it bail silently rather than crash.
+  if (deals === null) return <Loading label={signedIn ? 'Finding your matches…' : 'Loading deals…'} />;
 
   return (
     <View style={styles.wrap}>
@@ -100,7 +126,7 @@ export default function Search() {
           />
           {query ? <Pressable onPress={() => setQuery('')} hitSlop={8}><Text style={styles.clear}>✕</Text></Pressable> : null}
         </View>
-        <Pressable onPress={() => router.push('/buybox')} style={styles.filterBtn} accessibilityLabel="Filters">
+        <Pressable onPress={openBuyBox} style={styles.filterBtn} accessibilityLabel="Filters">
           <Text style={styles.filterIcon}>⚙︎</Text>
         </Pressable>
       </View>
@@ -147,13 +173,33 @@ export default function Search() {
             renderItem={({ item }) => <DealCard deal={item} onPress={() => router.push(`/deal/${item.id}`)} />}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.blue} />}
             ListHeaderComponent={
-              <Text style={styles.banner}>⚡ Early access — you see new deals {EARLY_ACCESS_HEADSTART_MIN} minutes before the public.</Text>
+              // Signed-out this line was a straight-up lie — a guest gets no alerts
+              // at all, so there is nothing for them to be early TO. (The head start
+              // itself is a backend claim we only ever reflected in copy.) Guests get
+              // the honest version, which is also the reason to sign up.
+              signedIn ? (
+                <Text style={styles.banner}>⚡ Early access — you see new deals {EARLY_ACCESS_HEADSTART_MIN} minutes before the public.</Text>
+              ) : (
+                <Pressable onPress={() => openSignUp('alerts')}>
+                  <Text style={styles.banner}>🔔 Create a free account to be alerted the moment a matching deal lands.</Text>
+                </Pressable>
+              )
             }
             ListEmptyComponent={
               <EmptyState
-                title={query ? 'No matches for that search' : 'No matches yet'}
-                body={query ? 'Try a different city, ZIP, or clear the search.' : 'Set up your buy-box (markets, price band, min profit) and we’ll surface deals that fit.'}
-                action={query ? undefined : <Button title="Set up buy-box" onPress={() => router.push('/buybox')} variant="accent" />}
+                title={query ? 'No matches for that search' : signedIn ? 'No matches yet' : 'No live deals right now'}
+                body={
+                  query ? 'Try a different city, ZIP, or clear the search.'
+                  : signedIn ? 'Set up your buy-box (markets, price band, min profit) and we’ll surface deals that fit.'
+                  : 'Create a free account and we’ll alert you the moment a matching deal lands.'
+                }
+                action={query ? undefined : (
+                  <Button
+                    title={signedIn ? 'Set up buy-box' : 'Create free account'}
+                    onPress={signedIn ? openBuyBox : () => openSignUp('buybox')}
+                    variant="accent"
+                  />
+                )}
               />
             }
           />

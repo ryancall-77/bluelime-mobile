@@ -4,17 +4,26 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { DealCard } from '@/components/DealCard';
 import { EmptyState, Loading, Button } from '@/components/ui';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { getProfile } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import type { ListingCard } from '@/lib/types';
 import { colors, space } from '@/lib/theme';
 
 // Saved deals come from the buyer profile payload (saved[]).
+//
+// Signed out this tab is a sign-in prompt, not "Nothing saved yet" — a guest has
+// no favorites by definition, and the real empty state would read as a truthful
+// answer to a question they never got to ask.
 export default function Watchlist() {
   const router = useRouter();
+  const { signedIn } = useAuth();
   const [saved, setSaved] = useState<ListingCard[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
+    // getProfile() is an authed endpoint; a guest would just eat a 401.
+    if (!signedIn) return;
     if (isRefresh) setRefreshing(true);
     try {
       const res = await getProfile();
@@ -24,10 +33,14 @@ export default function Watchlist() {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [signedIn]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // Both early returns sit below every hook — the react compiler is on, and a
+  // conditional return above a hook makes it bail silently instead of crashing.
+  // Guest first, so they never sit on a spinner for a fetch that never runs.
+  if (!signedIn) return <SignInPrompt title="Save the deals you like" reason="save" />;
   if (saved === null) return <Loading label="Loading your saved deals…" />;
 
   return (

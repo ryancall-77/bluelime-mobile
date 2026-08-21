@@ -2,7 +2,9 @@ import React, { useCallback, useState } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { EmptyState, Loading, Button } from '@/components/ui';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { listSellerThreads } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import type { SellerThreadListItem } from '@/lib/types';
 import { fmtDate, fmtUsd } from '@/lib/format';
 import { colors, font, radius, space } from '@/lib/theme';
@@ -11,10 +13,13 @@ import { colors, font, radius, space } from '@/lib/theme';
 // Tap → the seller thread (reply from there). Unread = buyer messages not read.
 export default function Buyers() {
   const router = useRouter();
+  const { signedIn } = useAuth();
   const [threads, setThreads] = useState<SellerThreadListItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
+    // listSellerThreads() is an authed endpoint; a guest would just eat a 401.
+    if (!signedIn) return;
     if (isRefresh) setRefreshing(true);
     try {
       const res = await listSellerThreads();
@@ -24,10 +29,14 @@ export default function Buyers() {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [signedIn]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // Both early returns sit below every hook — the react compiler is on, and a
+  // conditional return above a hook makes it bail silently instead of crashing.
+  // Guest first, so they never sit on a spinner for a fetch that never runs.
+  if (!signedIn) return <SignInPrompt title="Work your buyers in one place" reason="buyers" />;
   if (threads === null) return <Loading label="Loading buyer activity…" />;
 
   return (

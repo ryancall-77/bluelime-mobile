@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Button, EmptyState, Loading, VerifiedBadge } from '@/components/ui';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { listUnderwritings } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { UnderwritingListItem } from '@/lib/types';
@@ -14,11 +15,13 @@ import { colors, radius, space, font } from '@/lib/theme';
 // intentionally stays org-wide). Tap to open the report + re-share the buyer link.
 export default function Listings() {
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, signedIn } = useAuth();
   const [items, setItems] = useState<UnderwritingListItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
+    // listUnderwritings() is authed, and the creator filter below needs a user id.
+    if (!signedIn) return;
     if (isRefresh) setRefreshing(true);
     try {
       const res = await listUnderwritings();
@@ -30,10 +33,15 @@ export default function Listings() {
     } finally {
       setRefreshing(false);
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, signedIn]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // Both early returns sit below every hook — the react compiler is on, and a
+  // conditional return above a hook makes it bail silently instead of crashing.
+  // Guest first: "No live listings yet" is technically true of a guest and
+  // completely misleading, since publishing is what an account is FOR.
+  if (!signedIn) return <SignInPrompt title="Publish your own deals" reason="listings" />;
   if (items === null) return <Loading label="Loading your listings…" />;
 
   return (
