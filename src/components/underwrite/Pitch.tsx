@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Button } from '@/components/ui';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/lib/config';
@@ -95,14 +96,22 @@ export function Pitch({
         before the seller hangs up. Try it for free - no credit card required.
       </Text>
 
-      {/* ── The address field, and the promise wrapped around it ── */}
-      <Text style={styles.fieldLead}>Underwrite a deal now! Fast, easy, free.</Text>
-      {children}
-      <Text style={styles.fieldFoot}>
-        {freeReports == null
-          ? 'No sales calls. Your first reports are free - no card.'
-          : `No sales calls. Your first ${freeReports} reports are free - no card.`}
-      </Text>
+      {/* ── The address field ──
+          Everything on this screen exists to get an address typed here, so the whole
+          block is lifted onto its own lime-edged panel rather than sitting inline as
+          one more paragraph in a column of paragraphs. "Fast, easy, free." gets its
+          own line and the accent colour: it is the promise, not a continuation of the
+          instruction, and reading them as one sentence flattened both. */}
+      <View style={styles.focus}>
+        <Text style={styles.fieldLead}>Underwrite a deal now!</Text>
+        <Text style={styles.fieldLeadAccent}>Fast, easy, free.</Text>
+        {children}
+        <Text style={styles.fieldFoot}>
+          {freeReports == null
+            ? 'No sales calls. Your first reports are free - no card.'
+            : `No sales calls. Your first ${freeReports} reports are free - no card.`}
+        </Text>
+      </View>
 
       {/* ── Sample report ── the one thing a sceptic wants before typing an address. */}
       <Pressable
@@ -110,8 +119,15 @@ export function Pitch({
         style={({ pressed }) => [styles.sample, pressed && styles.samplePressed]}
         accessibilityRole="button"
       >
-        <Text style={styles.sampleKicker}>REAL REPORT · REAL NUMBERS</Text>
-        <Text style={styles.sampleTitle}>See one before you run one</Text>
+        <View style={styles.sampleHead}>
+          <View style={styles.sampleBadge}><Text style={styles.sampleBadgeText}>SAMPLE</Text></View>
+          <Text style={styles.sampleKicker}>REAL REPORT · REAL NUMBERS</Text>
+        </View>
+        <Text style={styles.sampleTitle}>See a full report</Text>
+        <Text style={styles.sampleLede}>
+          This is an actual report we ran — open it and read the whole thing, every comp and every
+          repair line, before you type anything.
+        </Text>
         <Text style={styles.sampleAddr}>5301 Wren St, Orlando FL</Text>
         <View style={styles.metrics}>
           <Metric label="Cash MAO" value={usd(SAMPLE_CASH_MAO_CENTS)} tint={colors.lime} />
@@ -121,7 +137,12 @@ export function Pitch({
           <Metric label="ARV" value={usd(SAMPLE_ARV_CENTS)} />
           <Metric label="Rehab" value={usd(SAMPLE_REHAB_CENTS)} tint={colors.warn} />
         </View>
-        <Text style={styles.sampleCta}>Open the sample report →</Text>
+        <Button
+          title="Open the sample report"
+          variant="accent"
+          onPress={() => router.push('/sample-report')}
+          style={styles.sampleBtn}
+        />
       </Pressable>
 
       {/* ── How it works ── */}
@@ -194,21 +215,49 @@ const styles = StyleSheet.create({
     textAlign: 'center', marginBottom: space.xxl,
   },
 
+  // The one thing the screen is FOR. A lime edge and a lifted surface pull it out of
+  // the column of paragraphs around it; without this it read as one more section.
+  focus: {
+    backgroundColor: colors.surface,
+    borderWidth: 2, borderColor: colors.lime, borderRadius: radius.lg,
+    padding: space.lg, paddingTop: space.xl,
+    marginBottom: space.xxl,
+  },
   fieldLead: {
     color: colors.text, fontSize: font.h2, fontWeight: '800',
-    textAlign: 'center', marginBottom: space.md,
+    textAlign: 'center', marginBottom: space.xs,
+  },
+  // Its own line, in the accent. "Fast, easy, free." is the promise; run on the end
+  // of the instruction it read as filler and neither half landed.
+  fieldLeadAccent: {
+    color: colors.lime, fontSize: font.h2, fontWeight: '800',
+    textAlign: 'center', marginBottom: space.lg,
   },
   fieldFoot: {
-    color: colors.textFaint, fontSize: font.body, lineHeight: 21,
-    textAlign: 'center', marginTop: space.sm, marginBottom: space.xl,
+    color: colors.textDim, fontSize: font.small, lineHeight: 20,
+    textAlign: 'center', marginTop: space.md,
   },
 
+  // Reads as a document, not a paragraph: a lime top rule, the SAMPLE chip and a
+  // real button. Previously a bordered box whose heading ("See one before you run
+  // one") never actually said the words 'sample report', so what it offered was
+  // left to inference.
   sample: {
-    backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
-    padding: space.lg, marginBottom: space.xl,
+    backgroundColor: colors.surface, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.border,
+    borderTopWidth: 4, borderTopColor: colors.lime,
+    padding: space.lg, marginBottom: space.xxl,
   },
   samplePressed: { backgroundColor: colors.surfaceAlt },
-  sampleKicker: { color: colors.lime, fontSize: font.small, fontWeight: '800', letterSpacing: 1, marginBottom: space.xs },
+  sampleHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: space.md },
+  sampleBadge: {
+    backgroundColor: colors.lime, borderRadius: radius.sm,
+    paddingHorizontal: space.sm, paddingVertical: 3,
+  },
+  sampleBadgeText: { color: colors.bg, fontSize: font.tiny, fontWeight: '900', letterSpacing: 1 },
+  sampleKicker: { color: colors.lime, fontSize: font.small, fontWeight: '800', letterSpacing: 1, flex: 1 },
+  sampleLede: { color: colors.textDim, fontSize: font.body, lineHeight: 22, marginBottom: space.lg },
+  sampleBtn: { marginTop: space.sm },
   sampleTitle: { color: colors.text, fontSize: font.h2, fontWeight: '700', marginBottom: space.xs },
   sampleAddr: { color: colors.textDim, fontSize: font.body, marginBottom: space.md },
   metrics: { flexDirection: 'row', gap: space.md, marginBottom: space.md },
@@ -218,7 +267,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5, marginBottom: 2,
   },
   metricValue: { color: colors.text, fontSize: font.h3, fontWeight: '800' },
-  sampleCta: { color: colors.blue, fontSize: font.body, fontWeight: '700', marginTop: space.xs },
+
 
   sectionTitle: { color: colors.text, fontSize: font.h2, fontWeight: '700', marginTop: space.lg, marginBottom: space.md },
   step: { flexDirection: 'row', gap: space.sm, marginBottom: space.md },
