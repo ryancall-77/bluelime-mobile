@@ -96,30 +96,25 @@ export default function Submit() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
           >
-            <Pitch pricing={pricing}>
+            <Pitch
+              pricing={pricing}
+              canStart={draft.trim().length >= 8 && draft.trim() !== address}
+              onStart={() => setAddress(draft.trim())}
+            >
               <AddressAutocomplete
                 value={draft}
                 onChangeText={setDraft}
                 onSelect={(a) => { setDraft(a); setAddress(a); }}
                 placeholder="Start typing an address…"
               />
-              {/* ⚠️ ESCAPE HATCH — without this, a GUEST can never reach State B.
-                  /api/places/autocomplete gates on a logged-in user and 401s for a
-                  signed-out caller, so the dropdown never opens and onSelect — the
-                  only trigger — never fires. The pitch would be a dead end for
-                  exactly the audience it exists for. This is also the right
-                  behaviour whenever Places is down or the address simply isn't in
-                  Google's index, so it stays even after the endpoint is opened up.
-                  It is still a deliberate COMMIT, not a keystroke trigger. */}
-              {draft.trim().length >= 8 && draft.trim() !== address ? (
-                <Pressable
-                  onPress={() => setAddress(draft.trim())}
-                  style={({ pressed }) => [styles.useAddress, pressed && styles.useAddressPressed]}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.useAddressText}>Use this address →</Text>
-                </Pressable>
-              ) : null}
+              {/* ⚠️ The button above IS the escape hatch, and it is load-bearing.
+                  /api/places/autocomplete gates on a logged-in user and 401s a guest,
+                  so the dropdown never opens and onSelect — which used to be the only
+                  trigger — never fires. Without a commit control the pitch is a dead
+                  end for exactly the audience it exists for. It stays even once Places
+                  is opened up, for the address Google simply does not have. Still a
+                  deliberate COMMIT (>= 8 chars, changed since last) rather than a
+                  keystroke trigger. */}
             </Pitch>
           </ScrollView>
         </KeyboardLift>

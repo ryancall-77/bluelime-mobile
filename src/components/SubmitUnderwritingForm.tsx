@@ -10,6 +10,7 @@ import { submitUnderwriting, getSubjectSpecs, checkPropertyType } from '@/lib/ap
 import type { SubmitUnderwritingBody } from '@/lib/types';
 import { markHasRunUnderwrite } from '@/components/underwrite/returningUser';
 import { clearDraft, loadDraft, saveDraft, type PoolChoice } from '@/lib/draft';
+import { useCredits } from '@/components/underwrite/useCredits';
 import { colors, space, font, radius } from '@/lib/theme';
 
 // STATE B — the prefilled form, and the whole of the modal /underwriting/new route.
@@ -68,6 +69,24 @@ export function SubmitUnderwritingForm({
 } = {}) {
   const router = useRouter();
   const { signedIn } = useAuth();
+  const credits = useCredits();
+
+  // The button says what is about to happen to THIS user. It used to always read
+  // "Run my free underwrite" — wrong for a signed-in user spending a paid credit,
+  // wrong for one with none left, and it hid the account step from a guest until
+  // they tapped it. `credits === null` means unknown (guest, in flight, or a failed
+  // read), and falls back to the neutral label rather than asserting a number.
+  const runLabel = (() => {
+    if (!signedIn) return 'Create account & run my report';
+    if (!credits) return 'Run my underwriting';
+    if (credits.trialRemaining > 0) {
+      return `Run my free report (${credits.trialRemaining} left)`;
+    }
+    if (credits.paidRemaining > 0) {
+      return `Run my report (${credits.paidRemaining} credit${credits.paidRemaining === 1 ? '' : 's'})`;
+    }
+    return 'Add credits to run a report';
+  })();
   const { track } = useRuns();
 
   // Uncontrolled address (modal path only). When `addressProp` is supplied the parent
@@ -426,7 +445,7 @@ export function SubmitUnderwritingForm({
             />
           </View>
         ) : (
-          <Button title="Run my free underwrite" onPress={submit} loading={busy} />
+          <Button title={runLabel} onPress={submit} loading={busy} />
         )}
 
         {/* No minute promise at the moment of truth. "3-5 minutes" stays in the PITCH

@@ -15,6 +15,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { PRIVACY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/lib/config';
 import { colors, font, radius, space } from '@/lib/theme';
 import type { UnderwritePricing } from './marketingConfig';
+import { useCredits, creditsLine } from './useCredits';
 
 // ── The sample report's real numbers ────────────────────────────────────────────
 // Read from app/src/app/(marketing)/sample-report/sample-data.json (5301 Wren St,
@@ -69,13 +70,20 @@ function Reason({ lead, children }: { lead: string; children: React.ReactNode })
 export function Pitch({
   pricing,
   children,
+  onStart,
+  canStart,
 }: {
   pricing: UnderwritePricing;
+  /** Advance to the form. Same effect as picking from the dropdown. */
+  onStart?: () => void;
+  /** An address has been chosen, so the button is live. */
+  canStart?: boolean;
   /** The address field. It sits INSIDE the pitch, under "Underwrite a deal now!". */
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const { freeReports, priceRange } = pricing;
+  const credits = useCredits();
 
   return (
     <View>
@@ -106,11 +114,21 @@ export function Pitch({
         <Text style={styles.fieldLead}>Underwrite a deal now!</Text>
         <Text style={styles.fieldLeadAccent}>Fast, easy, free.</Text>
         {children}
-        <Text style={styles.fieldFoot}>
-          {freeReports == null
-            ? 'No sales calls. Your first reports are free - no card.'
-            : `No sales calls. Your first ${freeReports} reports are free - no card.`}
-        </Text>
+        {/* A button, even though picking from the dropdown already advances. Without a
+            visible CTA under the field the section had no obvious next step and read as
+            a search box rather than the start of something. Disabled until an address is
+            chosen, so it can never fire on an empty or half-typed string. */}
+        <Button
+          title="Get my report"
+          variant="primary"
+          disabled={!canStart}
+          onPress={() => onStart?.()}
+          style={styles.fieldBtn}
+        />
+        {/* Signed OUT this is the offer; signed IN it is their actual balance. Showing a
+            logged-in user with credits "your first 3 reports are free" is telling them
+            about a trial they already started. */}
+        <Text style={styles.fieldFoot}>{creditsLine(credits, freeReports)}</Text>
       </View>
 
       {/* ── Sample report ── the one thing a sceptic wants before typing an address. */}
@@ -233,6 +251,7 @@ const styles = StyleSheet.create({
     color: colors.lime, fontSize: font.h2, fontWeight: '800',
     textAlign: 'center', marginBottom: space.lg,
   },
+  fieldBtn: { marginTop: space.lg },
   fieldFoot: {
     color: colors.textDim, fontSize: font.small, lineHeight: 20,
     textAlign: 'center', marginTop: space.md,

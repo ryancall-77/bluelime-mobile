@@ -34,6 +34,30 @@ async function get<T>(path: string): Promise<T> {
   return parse<T>(res);
 }
 
+/**
+ * GET /api/billing/uw-settings — the caller's remaining underwriting reports.
+ *
+ * Two separate pools and they mean different things to a user, so they are NOT summed
+ * here: trial_runs_remaining is the free grant ('3 free reports'), balance_runs is what
+ * they paid for. The pitch says 'free' only while trial credits remain; once those are
+ * spent, promising 'free' to someone spending their own credits is a lie the first
+ * report will expose.
+ *
+ * Signed-in only. Callers treat a throw as 'unknown' and fall back to the guest copy —
+ * never to a zero, which would tell a paying user they have nothing.
+ */
+export type UwCredits = { trialRemaining: number; paidRemaining: number };
+
+export const getUwCredits = async (): Promise<UwCredits> => {
+  const r = await get<{ trial_runs_remaining?: number | null; balance_runs?: number | null }>(
+    '/api/billing/uw-settings',
+  );
+  return {
+    trialRemaining: Math.max(0, Number(r.trial_runs_remaining ?? 0)),
+    paidRemaining: Math.max(0, Number(r.balance_runs ?? 0)),
+  };
+};
+
 async function send<T>(path: string, method: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method,
