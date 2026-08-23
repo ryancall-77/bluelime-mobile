@@ -107,12 +107,12 @@ export function Pitch({
       {/* ── The address field ──
           Everything on this screen exists to get an address typed here, so the whole
           block is lifted onto its own lime-edged panel rather than sitting inline as
-          one more paragraph in a column of paragraphs. "Fast, easy, free." gets its
+          one more paragraph in a column of paragraphs. "Fast, easy, accurate." gets its
           own line and the accent colour: it is the promise, not a continuation of the
           instruction, and reading them as one sentence flattened both. */}
       <View style={styles.focus}>
         <Text style={styles.fieldLead}>Underwrite a deal now!</Text>
-        <Text style={styles.fieldLeadAccent}>Fast, easy, free.</Text>
+        <Text style={styles.fieldLeadAccent}>Fast, easy, accurate.</Text>
         {children}
         {/* A button, even though picking from the dropdown already advances. Without a
             visible CTA under the field the section had no obvious next step and read as
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     color: colors.text, fontSize: font.h2, fontWeight: '800',
     textAlign: 'center', marginBottom: space.xs,
   },
-  // Its own line, in the accent. "Fast, easy, free." is the promise; run on the end
+  // Its own line, in the accent. "Fast, easy, accurate." is the promise; run on the end
   // of the instruction it read as filler and neither half landed.
   fieldLeadAccent: {
     color: colors.lime, fontSize: font.h2, fontWeight: '800',
