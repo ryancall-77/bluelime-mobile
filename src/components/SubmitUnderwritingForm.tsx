@@ -76,16 +76,32 @@ export function SubmitUnderwritingForm({
   // wrong for one with none left, and it hid the account step from a guest until
   // they tapped it. `credits === null` means unknown (guest, in flight, or a failed
   // read), and falls back to the neutral label rather than asserting a number.
+  // "Submit for Underwriting" is the label wherever the tap actually submits, so it
+  // matches the button on the pitch and the two read as review-then-submit. It only
+  // changes where the ACTION changes: a guest gets an account step first, and a user
+  // with nothing left cannot submit at all. The COUNT lives in the footer line rather
+  // than the label — a button that grows to "Submit for Underwriting (2 free trial
+  // reports left)" wraps on a phone and buries the verb. (Ryan, 2026-08-23.)
   const runLabel = (() => {
-    if (!signedIn) return 'Create account & run my report';
-    if (!credits) return 'Run my underwriting';
+    if (!signedIn) return 'Create account & Submit';
+    if (credits && credits.trialRemaining === 0 && credits.paidRemaining === 0) {
+      return 'Add credits to submit';
+    }
+    return 'Submit for Underwriting';
+  })();
+
+  // What this tap will actually cost them. "Free trial" appears only while trial
+  // credits remain and disappears the moment they are gone.
+  const runFoot = (() => {
+    if (!signedIn) return 'You’ll create a free account so we can send you the report.';
+    if (!credits) return 'This starts your report.';
     if (credits.trialRemaining > 0) {
-      return `Run my free report (${credits.trialRemaining} left)`;
+      return `This starts your report — 1 of your ${credits.trialRemaining} free trial report${credits.trialRemaining === 1 ? '' : 's'}.`;
     }
     if (credits.paidRemaining > 0) {
-      return `Run my report (${credits.paidRemaining} credit${credits.paidRemaining === 1 ? '' : 's'})`;
+      return `This starts your report — 1 of your ${credits.paidRemaining} credit${credits.paidRemaining === 1 ? '' : 's'}.`;
     }
-    return 'Add credits to run a report';
+    return 'You’re out of report credits — add more to submit.';
   })();
   const { track } = useRuns();
 
@@ -457,10 +473,8 @@ export function SubmitUnderwritingForm({
           {justSubmitted
             ? 'We’ll notify you the moment it’s done.'
             : justSignedIn
-              ? 'You’re in. Tap Run to start your report.'
-              : needsAccount || !signedIn
-                ? 'Free. We’ll ask where to send the report.'
-                : ''}
+              ? 'You’re in. Tap Submit to start your report.'
+              : runFoot}
         </Text>
       </View>
     </KeyboardLift>

@@ -25,19 +25,26 @@ export function useCredits(): UwCredits | null {
   return credits;
 }
 
-/** The one place the "how many reports do you have" sentence is written. */
+/**
+ * The one place the "how many reports do you have" sentence is written.
+ *
+ * "Free trial" appears ONLY while trial credits remain. The moment they are spent it
+ * disappears entirely — a paying user reading 'free trial' next to credits they bought
+ * is confusing at best and reads as a billing error at worst. (Ryan, 2026-08-23.)
+ */
 export function creditsLine(credits: UwCredits | null, freeReports: number | null): string {
   if (credits) {
     const { trialRemaining, paidRemaining } = credits;
     if (trialRemaining > 0) {
-      return `You have ${trialRemaining} free report${trialRemaining === 1 ? '' : 's'} left.`;
+      return `Free trial: ${trialRemaining} report${trialRemaining === 1 ? '' : 's'} left.`;
     }
+    // Trial spent — no mention of it from here on.
     if (paidRemaining > 0) {
-      return `You have ${paidRemaining} report credit${paidRemaining === 1 ? '' : 's'} left.`;
+      return `${paidRemaining} report credit${paidRemaining === 1 ? '' : 's'} left.`;
     }
-    return 'You have no report credits left — add more to run another.';
+    return 'No report credits left — add more to run another.';
   }
   return freeReports == null
-    ? 'Your first reports are free.'
-    : `Your first ${freeReports} reports are free.`;
+    ? 'Your free trial is on us — no card.'
+    : `Your free trial includes ${freeReports} reports — no card.`;
 }

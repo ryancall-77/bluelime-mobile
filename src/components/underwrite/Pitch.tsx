@@ -119,7 +119,7 @@ export function Pitch({
             a search box rather than the start of something. Disabled until an address is
             chosen, so it can never fire on an empty or half-typed string. */}
         <Button
-          title="Get my report"
+          title="Submit for Underwriting"
           variant="primary"
           disabled={!canStart}
           onPress={() => onStart?.()}
@@ -187,9 +187,15 @@ export function Pitch({
           nothing specific rather than one that promises the wrong thing. */}
       <View style={styles.pricing}>
         <Text style={styles.pricingText}>
-          {freeReports == null
-            ? 'Your first reports are free. '
-            : `Your first ${freeReports} reports are free. `}
+          {/* Signed-in users who have SPENT the trial should not read about it here
+              either — this is the pricing block, and 'your first N are free' next to
+              credits they paid for reads as a billing mistake. Drops to the price line
+              alone once the trial is gone. */}
+          {credits && credits.trialRemaining === 0
+            ? ''
+            : freeReports == null
+              ? 'Your free trial is on us. '
+              : `Your free trial includes ${freeReports} reports. `}
           {priceRange == null
             ? 'After that it is pay-per-report - no subscription, cancel nothing.'
             : `After that it is ${priceRange} per report - no subscription, cancel nothing.`}
