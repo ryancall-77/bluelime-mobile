@@ -4,7 +4,7 @@ import MapView, { Marker, PROVIDER_DEFAULT, type Region } from 'react-native-map
 import { useRouter, useFocusEffect } from 'expo-router';
 import { DealCard } from '@/components/DealCard';
 import { Button, EmptyState, Loading } from '@/components/ui';
-import { getFeed, getPublicFeed } from '@/lib/api';
+import { getPublicFeed } from '@/lib/api';
 import type { FeedDeal } from '@/lib/types';
 import { fmtUsdShort } from '@/lib/format';
 import { colors, font, radius, space } from '@/lib/theme';
@@ -43,14 +43,24 @@ export default function Search() {
   const [view, setView] = useState<'map' | 'list'>('map');
   const [query, setQuery] = useState('');
 
-  // Signed in → the buy-box-matched feed. Signed out → the public board. Both
-  // return { deals }: getPublicFeed does the envelope rename in api.ts precisely
-  // so nothing downstream of here has to know which one ran.
+  // ⚠️ ALWAYS THE PUBLIC BOARD. EVERY deal, to everyone, signed in or not.
+  // (Ryan, 2026-08-28: "It's essential that all deals show to all users all the
+  // time. You don't even need to be a user or have an account.")
+  //
+  // This used to be `signedIn ? getFeed() : getPublicFeed()`, and /feed is
+  // BUY-BOX MATCHED. So signing in made the board WORSE: the app-review account
+  // has no buy-box, matched nothing, and every deal vanished the instant it
+  // authenticated — a guest saw the whole map and a logged-in user saw nothing.
+  // That is an App Store blocker, and it is backwards regardless.
+  //
+  // The buy-box stays what it is good for — deal ALERTS — and must never again
+  // decide whether inventory is visible at all. If matched-first ordering is
+  // wanted later, sort by it; do not filter on it.
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     setError(null);
     try {
-      const res = signedIn ? await getFeed() : await getPublicFeed();
+      const res = await getPublicFeed();
       setDeals(res.deals ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load deals');
