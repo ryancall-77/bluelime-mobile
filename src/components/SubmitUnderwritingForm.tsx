@@ -56,7 +56,8 @@ export function SubmitUnderwritingForm({
   address?: string;
   /** ✎ — return to the pitch. Only rendered when the address is controlled. */
   onEditAddress?: () => void;
-  onSubmitted?: () => void;
+  /** Receives the new analysis id so the caller can route to its progress screen. */
+  onSubmitted?: (analysisId: string) => void;
   /**
    * Restore a saved draft on mount. TRUE only for the Underwrite tab.
    * /underwriting/new owns its own address field, so it would restore every
@@ -308,7 +309,7 @@ export function SubmitUnderwritingForm({
       setTimeout(() => setJustSubmitted(false), 8000);
       // Navigation is the CALLER's decision: the modal route dismisses itself, the
       // Underwrite tab drops back to its pitch. Doing either here would race.
-      onSubmitted?.();
+      onSubmitted?.(res.analysis_id);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not submit. Try again.');
     } finally {

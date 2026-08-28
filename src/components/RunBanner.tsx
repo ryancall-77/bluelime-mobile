@@ -70,6 +70,10 @@ export function RunBanner({
     showSpinner = false;
   }
 
+  // The expanded call-to-action state. Only a genuinely finished report earns it —
+  // a pre-estimate is still mid-flight and keeps the compact row.
+  const isReady = phase === 'ready';
+
   const pct = phase === 'processing' && !run.stalled
     ? stageProgress(run.processing_stage, run.stage_seen_at, Date.now())
     : null;
@@ -115,6 +119,26 @@ export function RunBanner({
           <Text style={[styles.pctText, { color: tint }]}>{Math.round(pct * 100)}%</Text>
         </View>
       ) : null}
+
+      {/* READY: expand with an explicit call to action (Ryan, 2026-08-28). A finished
+          report is the one state worth taking extra height for — the whole point of the
+          banner is that this moment is easy to act on.
+
+          Tapping it navigates AND dismisses, so the banner is gone when they arrive.
+          `ready` is terminal, so a dismiss here is permanent: dismiss() records the
+          phase and only a phase CHANGE un-hides it, and there is no phase after ready.
+          Without the dismiss the banner would still be sitting there on the report
+          screen, advertising the thing you are already looking at. */}
+      {isReady ? (
+        <Pressable
+          onPress={() => { onPress(); onDismiss(); }}
+          style={[styles.cta, { borderColor: tint }]}
+          accessibilityRole="button"
+          accessibilityLabel={`View the finished report for ${address}`}
+        >
+          <Text style={[styles.ctaText, { color: tint }]}>View report →</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -130,6 +154,11 @@ const styles = StyleSheet.create({
   detail: { color: colors.textDim, fontSize: font.tiny, marginTop: 1 },
   close: { paddingHorizontal: 4, paddingVertical: 4 },
   closeText: { color: colors.textFaint, fontSize: 15, fontWeight: '600' },
+  cta: {
+    marginHorizontal: space.lg, marginBottom: space.sm,
+    borderWidth: 1, borderRadius: 8, paddingVertical: 9, alignItems: 'center',
+  },
+  ctaText: { fontSize: font.small, fontWeight: '800' },
   // Deliberately chunky. At 3px on a dark ground the old bar was invisible unless you
   // went looking for it (Ryan, 2026-08-19); the percentage next to it removes any doubt
   // that something is actually moving.

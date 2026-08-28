@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { KeyboardLift } from '@/components/KeyboardLift';
@@ -34,6 +35,7 @@ import { colors, font, space } from '@/lib/theme';
 // mailbox the report is delivered to, not a toll on the door — the prompt lives at
 // Run, inside the form. See SubmitUnderwritingForm.
 export default function Submit() {
+  const router = useRouter();
   const { signedIn } = useAuth();
   const pricing = useUnderwritePricing();
   const hasRun = useHasRunUnderwrite();
@@ -127,7 +129,15 @@ export default function Submit() {
           // back to owning its own address field, which is the same shape the modal
           // /underwriting/new route already uses.
           {...(address ? { address, onEditAddress: () => setAddress('') } : {})}
-          onSubmitted={() => { setSubmittedOnce(true); setAddress(''); setDraft(''); }}
+          // Go to the progress screen rather than leaving the submitter sitting on
+          // the form they just sent (Ryan, 2026-08-28). A `push`, never `replace`:
+          // an earlier version replaced onto a progress page and TRAPPED the user
+          // there with no back entry and nothing else to do. Push keeps the back
+          // gesture, and the progress screen now offers its own two ways out.
+          onSubmitted={(analysisId) => {
+            setSubmittedOnce(true); setAddress(''); setDraft('');
+            router.push({ pathname: '/underwriting/progress/[id]', params: { id: analysisId } });
+          }}
         />
       ) : null}
     </>

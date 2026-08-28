@@ -134,6 +134,26 @@ export default function RunProgress() {
           and we&apos;ll tell you the moment it&apos;s ready.
         </Text>
 
+        {/* Two ways out while it runs (Ryan, 2026-08-28). Submitting now LANDS here, so
+            this screen must never be a dead end — that is exactly the trap that got the
+            previous auto-navigation reverted on 2026-08-19. */}
+        {!done ? (
+          <View style={styles.waitBlock}>
+            <Text style={styles.waitLead}>While you wait, have a look at:</Text>
+            <Button
+              title="My reports"
+              variant="outline"
+              onPress={() => router.push('/(underwriting)/reports')}
+            />
+            <Button
+              title="Browse the marketplace"
+              variant="outline"
+              onPress={() => router.push('/(marketplace)')}
+              style={{ marginTop: space.sm }}
+            />
+          </View>
+        ) : null}
+
         {done ? (
           <Button
             title="View report →"
@@ -173,5 +193,7 @@ const styles = StyleSheet.create({
   stamp: { color: colors.textFaint, fontSize: font.tiny },
   foot: { color: colors.textFaint, fontSize: font.small, lineHeight: 19, marginTop: space.xl },
   closeRow: { alignSelf: 'center', paddingVertical: space.lg, paddingHorizontal: space.xl },
+  waitBlock: { marginTop: space.xl },
+  waitLead: { color: colors.textDim, fontSize: font.small, marginBottom: space.sm },
   closeText: { color: colors.blue, fontSize: font.body, fontWeight: '700' },
 });

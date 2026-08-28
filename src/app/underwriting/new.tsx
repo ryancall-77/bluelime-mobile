@@ -9,5 +9,15 @@ export default function NewUnderwriting() {
   // The Submit TAB passes no callback and simply stays put, so both entry points are
   // right without guessing at canGoBack().
   const router = useRouter();
-  return <SubmitUnderwritingForm onSubmitted={() => router.back()} />;
+  // Dismiss the modal, then land on the run's progress screen (Ryan, 2026-08-28) —
+  // `replace` so the dismissed modal is not left behind in the history for a back
+  // gesture to walk into.
+  return (
+    <SubmitUnderwritingForm
+      onSubmitted={(analysisId) => {
+        router.back();
+        router.push({ pathname: '/underwriting/progress/[id]', params: { id: analysisId } });
+      }}
+    />
+  );
 }
