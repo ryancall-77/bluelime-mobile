@@ -37,8 +37,12 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 // "no overlap" error rather than the `false` we want.
 function isPublicRoute(segments: readonly string[]): boolean {
   const [first, second] = segments;
-  // '/' itself — index.tsx redirects straight into the marketplace.
+  // '/' itself — index.tsx redirects to /home.
   if (first === undefined) return true;
+  // The home screen: the plain-language introduction to the product. Public by
+  // definition — it is the first thing a cold install and an App Review reviewer
+  // see, and it gates nothing (Ryan, 2026-08-28).
+  if (first === 'home') return true;
   if (first === '(auth)' || first === '(marketplace)') return true;
   // The whole underwriting group. It gates itself IN-FILE — submit is the public
   // landing screen and reports/listings/buyers each render <SignInPrompt/> — but
@@ -138,6 +142,9 @@ function RootNavigator() {
         contentStyle: { backgroundColor: colors.bg },
       }}
     >
+      {/* Home owns its own layout (no native header) — the TopBar is not shown
+          here on purpose: this screen IS the thing the TopBar navigates to. */}
+      <Stack.Screen name="home" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(marketplace)" options={{ headerShown: false }} />
       <Stack.Screen name="(underwriting)" options={{ headerShown: false }} />

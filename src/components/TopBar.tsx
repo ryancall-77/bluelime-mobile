@@ -50,18 +50,40 @@ export function TopBar({ active }: { active: Mode }) {
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 6 }]}>
-      <Image
-        source={require('../../assets/images/brand-wide.png')}
-        style={styles.logo}
-        contentFit="contain"
-        accessibilityLabel="RealtyZoom"
-      />
+      {/* The lockup is a BUTTON: tapping it returns to /home (Ryan, 2026-08-28,
+          "if the user clicks on the logo at the top left it will go back to this
+          page"). Tapping a logo to go home is a web convention, though — iOS
+          users do not reach for it — so the Home segment below is the visible,
+          discoverable door and this is the shortcut for people who try it. */}
+      <Pressable
+        onPress={() => router.replace('/home')}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="RealtyZoom home"
+      >
+        <Image
+          source={require('../../assets/images/brand-wide.png')}
+          style={styles.logo}
+          contentFit="contain"
+        />
+      </Pressable>
 
       {/* Flexible gap: pushes the controls right and absorbs the slack, so the
           brand and the toggle can never occupy the same pixels. */}
       <View style={styles.spacer} />
 
       <View style={styles.segment}>
+        {/* Home is never the ACTIVE segment — this bar only renders inside the
+            (marketplace) and (underwriting) groups, and /home has no TopBar. It is
+            a way back, not a third mode, so it never takes the selected pill. */}
+        <Pressable
+          onPress={() => router.replace('/home')}
+          style={styles.seg}
+          accessibilityRole="button"
+          accessibilityLabel="Home"
+        >
+          <Text numberOfLines={1} style={styles.segText}>Home</Text>
+        </Pressable>
         <Pressable
           onPress={() => go('marketplace')}
           style={[styles.seg, active === 'marketplace' && styles.segOn]}

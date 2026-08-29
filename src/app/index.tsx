@@ -1,9 +1,14 @@
 import { Redirect } from 'expo-router';
 
-// Entry route. Unconditional now that the marketplace is browsable signed-out —
-// there is no session to wait on and no reason to branch, so this no longer holds
-// a Loading frame while auth resolves. Anything a guest cannot do prompts at the
-// tap (see lib/gate.ts), and the root navigator still backstops private routes.
+// Entry route -> the home screen (Ryan, 2026-08-28).
+//
+// This used to redirect straight into /(marketplace), so a cold install opened on
+// a map of pins with nothing anywhere saying what the app is. /home is the plain-
+// language introduction with the two doors on it; the Home|Deals|Underwrite
+// segment in TopBar and the logo tap both come back here, so it costs one tap and
+// is never a wall you have to get past.
+//
+// Still no session to wait on — /home is public, like everything it links to.
 export default function Index() {
-  return <Redirect href="/(marketplace)" />;
+  return <Redirect href="/home" />;
 }
