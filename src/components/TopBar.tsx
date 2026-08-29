@@ -26,14 +26,18 @@ import { useAuth } from '@/lib/auth';
 // Uses expo-image, matching DealCard/PhotoViewer/deal[id] — note it takes
 // `contentFit`, not react-native Image's `resizeMode`.
 
-type Mode = 'marketplace' | 'underwriting';
+// 'none' = neither pill highlighted. Used by the home screen, which is an
+// introduction rather than one of the two modes. It changes only which segment
+// reads as SELECTED — the header's contents are untouched (Ryan asked twice for
+// the header to be left exactly as it is).
+type Mode = 'marketplace' | 'underwriting' | 'none';
 
 export function TopBar({ active }: { active: Mode }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { signedIn } = useAuth();
 
-  const go = (mode: Mode) => {
+  const go = (mode: 'marketplace' | 'underwriting') => {
     if (mode === active) return;
     if (mode === 'marketplace') { router.replace('/(marketplace)'); return; }
     // A guest goes straight to Submit and never to the stored tab. Submit is the

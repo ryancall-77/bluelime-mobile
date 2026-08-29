@@ -28,6 +28,11 @@ export default function MarketplaceLayout() {
         tabBarInactiveTintColor: colors.textFaint,
       }}
     >
+      {/* The introduction screen. `href: null` = rendered by this navigator — so it
+          gets the bottom tray and the TopBar — but it is NOT a tab and adds no
+          icon to the row. Its header overrides `active` to 'none' because home is
+          neither of the two modes, so neither pill should read as selected. */}
+      <Tabs.Screen name="home" options={{ href: null, header: () => <TopBar active="none" /> }} />
       <Tabs.Screen name="index" options={{ title: 'Search', tabBarIcon: ({ color, focused }) => <TabIcon icon="🔍" color={color} focused={focused} /> }} />
       <Tabs.Screen name="favorites" options={{ title: 'Favorites', tabBarIcon: ({ color, focused }) => <TabIcon icon="❤️" color={color} focused={focused} /> }} />
       <Tabs.Screen name="offers" options={{ title: 'Offers', tabBarIcon: ({ color, focused }) => <TabIcon icon="💲" color={color} focused={focused} /> }} />
