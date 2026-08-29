@@ -52,9 +52,8 @@ export function TopBar({ active }: { active: Mode }) {
     <View style={[styles.wrap, { paddingTop: insets.top + 6 }]}>
       {/* The lockup is a BUTTON: tapping it returns to /home (Ryan, 2026-08-28,
           "if the user clicks on the logo at the top left it will go back to this
-          page"). Tapping a logo to go home is a web convention, though — iOS
-          users do not reach for it — so the Home segment below is the visible,
-          discoverable door and this is the shortcut for people who try it. */}
+          page"). This is the ONLY way back — the header keeps two segments and
+          gains no Home item; see the note on the segment below. */}
       <Pressable
         onPress={() => router.replace('/home')}
         hitSlop={8}
@@ -72,18 +71,14 @@ export function TopBar({ active }: { active: Mode }) {
           brand and the toggle can never occupy the same pixels. */}
       <View style={styles.spacer} />
 
+      {/* ⚠️ TWO segments only: Deals | Underwrite. Do NOT add a Home item here
+          (Ryan, 2026-08-28: "I don't want the home button in the iPhone app.
+          Don't change the header. Just make the logo go to the home page.").
+          /home is an INTRODUCTION screen — it does not matter whether anyone ever
+          returns to it, so it does not earn a permanent seat in the one row that
+          has to survive a 320pt phone. The logo is the way back and that is
+          enough. */}
       <View style={styles.segment}>
-        {/* Home is never the ACTIVE segment — this bar only renders inside the
-            (marketplace) and (underwriting) groups, and /home has no TopBar. It is
-            a way back, not a third mode, so it never takes the selected pill. */}
-        <Pressable
-          onPress={() => router.replace('/home')}
-          style={styles.seg}
-          accessibilityRole="button"
-          accessibilityLabel="Home"
-        >
-          <Text numberOfLines={1} style={styles.segText}>Home</Text>
-        </Pressable>
         <Pressable
           onPress={() => go('marketplace')}
           style={[styles.seg, active === 'marketplace' && styles.segOn]}
