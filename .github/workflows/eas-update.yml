@@ -138,13 +138,18 @@ jobs:
           # web static render evaluates native-only modules (secureStore/supabase)
           # under Node and crashes. This is an iPhone app, so publish iOS.
           #
-          # ⚠️ --branch AND --channel both track $CH. The channel is what the
-          # INSTALLED BINARY listens to (baked in by eas.json's build profile),
-          # and until 2026-09-03 this line was hardcoded to `preview` while the
-          # only live build was built on the `production` channel — so the
-          # production channel had no branch mapped to it at all and every
-          # publish went somewhere nothing was listening. Verify a publish
-          # against `eas build:list` (channel AND runtimeVersion), never against
-          # a previous OTA: CI publishes agree with each other and can all be
-          # wrong together.
-          eas update --branch "$CH" --channel "$CH" --environment "$CH" --platform ios --message "$MSG" --non-interactive
+          # ⚠️ --channel, NOT --branch. The CHANNEL is what the installed binary
+          # listens to (baked in by eas.json's build profile at build time);
+          # a branch is just a name that a channel points at. Until 2026-09-03
+          # this line was hardcoded to `--branch preview` while the only live
+          # build was built on the `production` channel — nothing was mapped to
+          # production, so every publish went where nothing was listening.
+          #
+          # ⚠️ They are MUTUALLY EXCLUSIVE — passing both fails with "Cannot
+          # specify both --channel and --branch". Publishing by channel lets EAS
+          # resolve/point the branch itself, which is what we want.
+          #
+          # Verify a publish against `eas build:list` (channel AND
+          # runtimeVersion), never against a previous OTA: CI publishes agree
+          # with each other and can all be wrong together.
+          eas update --channel "$CH" --environment "$CH" --platform ios --message "$MSG" --non-interactive
