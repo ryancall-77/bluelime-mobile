@@ -72,12 +72,21 @@ export function Pitch({
   children,
   onStart,
   canStart,
+  signedIn = false,
 }: {
   pricing: UnderwritePricing;
   /** Advance to the form. Same effect as picking from the dropdown. */
   onStart?: () => void;
   /** An address has been chosen, so the button is live. */
   canStart?: boolean;
+  /**
+   * Signed-in users see this SAME page — signing in must not cost you the page
+   * that explains the product (Ryan, 2026-09-03). The only difference is that
+   * every mention of the FREE TRIAL drops out: once you have an account the
+   * trial is either already running or already spent, and advertising it back
+   * to you reads as a billing mistake.
+   */
+  signedIn?: boolean;
   /** The address field. It sits INSIDE the pitch, under "Underwrite a deal now!". */
   children: React.ReactNode;
 }) {
@@ -101,7 +110,7 @@ export function Pitch({
       <Text style={styles.heroSmall}>Accurate Max Allowable Offers (MAO) within minutes.</Text>
       <Text style={styles.heroBody}>
         Get your real estate deals underwritten in 3-5 minutes, so you can make an offer at a price you can count on
-        before the seller hangs up. Try it for free - no credit card required.
+        before the seller hangs up.{signedIn ? '' : ' Try it for free - no credit card required.'}
       </Text>
 
       {/* ── The address field ──
@@ -128,7 +137,10 @@ export function Pitch({
         {/* Signed OUT this is the offer; signed IN it is their actual balance. Showing a
             logged-in user with credits "your first 3 reports are free" is telling them
             about a trial they already started. */}
-        <Text style={styles.fieldFoot}>{creditsLine(credits, freeReports)}</Text>
+        {/* ⚠️ Signed in, pass freeReports=null so creditsLine can never fall back to
+            "your free trial includes N reports" — that fallback fires whenever the
+            credits fetch has not landed yet, which is exactly the first paint. */}
+        <Text style={styles.fieldFoot}>{creditsLine(credits, signedIn ? null : freeReports, signedIn)}</Text>
       </View>
 
       {/* ── Sample report ── the one thing a sceptic wants before typing an address. */}
@@ -191,7 +203,7 @@ export function Pitch({
               either — this is the pricing block, and 'your first N are free' next to
               credits they paid for reads as a billing mistake. Drops to the price line
               alone once the trial is gone. */}
-          {credits && credits.trialRemaining === 0
+          {signedIn || (credits && credits.trialRemaining === 0)
             ? ''
             : freeReports == null
               ? 'Your free trial is on us. '

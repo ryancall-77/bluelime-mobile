@@ -7,18 +7,21 @@ import { SubmitUnderwritingForm } from '@/components/SubmitUnderwritingForm';
 import { Loading } from '@/components/ui';
 import { Pitch } from '@/components/underwrite/Pitch';
 import { useUnderwritePricing } from '@/components/underwrite/marketingConfig';
-import { useHasRunUnderwrite } from '@/components/underwrite/returningUser';
 import { useAuth } from '@/lib/auth';
 import { loadDraft } from '@/lib/draft';
 import { colors, font, space } from '@/lib/theme';
 
 // The Underwrite tab — ONE screen with two faces.
 //
-//   STATE A  the pitch. A guest, or a signed-in account that has never run anything,
-//            with no address chosen yet. Hero, address field, sample report, how it
-//            works, why the number holds up, pricing, legal.
+//   STATE A  the pitch. EVERYONE with no address chosen yet — guest or signed in.
+//            Hero, address field, sample report, how it works, why the number holds
+//            up, pricing, legal.
 //   STATE B  the form. The pitch unmounts and the prefilled form takes the screen.
-//   STATE C  a returning signed-in user skips A entirely and lands on the form.
+//
+// ⚠️ There used to be a STATE C: a returning signed-in user skipped the pitch and
+// landed straight on the form. Ryan removed it 2026-09-03 — signing in should not
+// cost you the page that explains the product; the ONLY difference once you are
+// signed in is that the free-trial copy drops out (see Pitch's `signedIn` prop).
 //
 // ── Why the switch is onSelect and NOT the first keystroke ──────────────────────
 // A keystroke trigger tears the pitch — and the sample card someone may be reaching
@@ -38,16 +41,11 @@ export default function Submit() {
   const router = useRouter();
   const { signedIn } = useAuth();
   const pricing = useUnderwritePricing();
-  const hasRun = useHasRunUnderwrite();
 
   // `draft` is what is typed in the pitch's field; `address` is what was SELECTED
   // from the dropdown. Only the second one moves the screen to State B.
   const [draft, setDraft] = useState('');
   const [address, setAddress] = useState('');
-  // A submit inside this session counts as "returning" immediately — useHasRunUnderwrite
-  // reads AsyncStorage once on mount, so without this the pitch would slide back over
-  // the confirmation line the moment the run registered.
-  const [submittedOnce, setSubmittedOnce] = useState(false);
 
   // ── Resume an unsent draft ──────────────────────────────────────────────────
   // A guest who tapped Run, went through signup and came back does NOT return to a
@@ -77,14 +75,16 @@ export default function Submit() {
     return () => { alive = false; };
   }, [signedIn]);
 
-  const skipPitch = signedIn && (hasRun === true || submittedOnce);
-  // Two things have to land before we know which face to wear, and both are cheap
-  // local reads: the returning-user flag (only a signed-in user can be a returning
-  // runner, so a guest never waits on it) and the unsent draft. Painting the pitch
-  // first and then yanking it away when either resolves is the exact disorienting
-  // swap the onSelect trigger exists to avoid, so hold instead.
-  const deciding = (signedIn && hasRun === null && !submittedOnce) || !resumed;
-  const showPitch = !address && !skipPitch && !deciding;
+  // The pitch is now shown to EVERYONE until an address is chosen (Ryan,
+  // 2026-09-03) — being signed in no longer skips it.
+  //
+  // Only the draft still has to land before we can pick a face; the
+  // returning-user flag no longer decides anything here, so a signed-in user no
+  // longer waits on it and the brief Loading flash it caused is gone. Painting
+  // the pitch and then yanking it away when the draft resolves is the exact
+  // disorienting swap the onSelect trigger exists to avoid, so hold instead.
+  const deciding = !resumed;
+  const showPitch = !address && !deciding;
 
   return (
     <>
@@ -100,6 +100,7 @@ export default function Submit() {
           >
             <Pitch
               pricing={pricing}
+              signedIn={signedIn}
               canStart={draft.trim().length >= 8 && draft.trim() !== address}
               onStart={() => setAddress(draft.trim())}
             >
@@ -135,7 +136,7 @@ export default function Submit() {
           // there with no back entry and nothing else to do. Push keeps the back
           // gesture, and the progress screen now offers its own two ways out.
           onSubmitted={(analysisId) => {
-            setSubmittedOnce(true); setAddress(''); setDraft('');
+            setAddress(''); setDraft('');
             router.push({ pathname: '/underwriting/progress/[id]', params: { id: analysisId } });
           }}
         />

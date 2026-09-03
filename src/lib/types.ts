@@ -10,6 +10,10 @@ export interface FeedDeal {
   arv_cents: number | null;
   rehab_cents: number | null;
   profit_cents: number | null;
+  // ARV − asking price. What the card badge and the deal header render in
+  // place of profit (Ryan, 2026-09-03). Optional so an older cached feed
+  // response still typechecks; the UI falls back to arv − ask.
+  spread_cents?: number | null;
   photo: string | null;
   beds: number | null;
   baths: number | null;
@@ -162,6 +166,10 @@ export interface ListingCard {
   listing_state?: string;
   photo: string | null;
   profit_cents: number | null;
+  // ARV − asking price. What the card badge and the deal header render in
+  // place of profit (Ryan, 2026-09-03). Optional so an older cached feed
+  // response still typechecks; the UI falls back to arv − ask.
+  spread_cents?: number | null;
   // Verified numbers + specs the deal card renders. Same names as DealDetail so
   // DealCard reads one shape on the feed and on Favorites.
   arv_cents?: number | null;
