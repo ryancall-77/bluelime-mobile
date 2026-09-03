@@ -48,32 +48,44 @@ export default function Submit() {
   const [address, setAddress] = useState('');
 
   // ── Resume an unsent draft ──────────────────────────────────────────────────
-  // A guest who tapped Run, went through signup and came back does NOT return to a
-  // live component: the root layout's backstop can replace this screen while there
-  // is no session, and an email confirmation can take the app out of memory
-  // entirely. The address is what decides which FACE this screen wears, so it has
-  // to be restored here rather than inside the form — restoring it lands the user
-  // straight back on State B, holding the property they were working on.
+  // Someone who tapped Run, went through signup and came back does NOT return to
+  // a live component: the root layout's backstop can replace this screen while
+  // there is no session, and an email confirmation can take the app out of memory
+  // entirely. So the typed address is reloaded here and put back in the pitch's
+  // field, ready to submit.
+  //
+  // It is NOT restored into `address` — see below. That value decides which face
+  // the screen wears, and restoring it skipped the pitch entirely.
   const [resumed, setResumed] = useState(false);
   useEffect(() => {
     let alive = true;
     loadDraft().then((d) => {
       if (!alive) return;
-      // Restore into State B ONLY for a signed-in user — i.e. someone who just came
-      // back through signup, which is the case this draft exists to serve.
+      // ⚠️ Restore the TYPED TEXT only — never the selected address.
       //
-      // A GUEST must keep seeing the pitch. Otherwise the failure mode is: they type
-      // an address, hit Run, meet the account prompt, walk away — and because the
-      // draft only clears on a successful submit or after 24h, their next cold launch
-      // drops them straight into a bare form and they never see the pitch again for a
-      // day. That is the app's whole first impression, withheld from precisely the
-      // audience that has not converted yet. The draft still restores their FIELDS the
-      // moment they pick an address again; it just no longer decides the face.
-      if (d?.address && signedIn) { setDraft(d.address); setAddress(d.address); }
+      // Setting `address` here decides the FACE (showPitch is `!address`), so a
+      // signed-in user with any draft from the last 24h was dropped straight onto
+      // the form and never saw the pitch. That is a SECOND door to the form,
+      // separate from the returning-user gate removed above, and closing only the
+      // first one left this behaviour exactly as it was (found on Ryan's device
+      // 2026-09-03, after the first fix appeared to do nothing).
+      //
+      // The reason the draft exists is still served: someone who typed an
+      // address, hit Run, went through signup and came back finds it already in
+      // the field — they tap Submit rather than retyping. The cost is one tap;
+      // the alternative silently withholds the app's whole first impression.
+      //
+      // This is also what makes signed-in match signed-out, which is the rule for
+      // this screen: a guest restores neither value, and now nobody restores the
+      // face.
+      if (d?.address) setDraft(d.address);
       setResumed(true);
     });
     return () => { alive = false; };
-  }, [signedIn]);
+    // Runs once. It used to depend on `signedIn` because the restore branched on
+    // it; now it does not, and re-running on an auth change would overwrite
+    // whatever the user had typed in the meantime.
+  }, []);
 
   // The pitch is now shown to EVERYONE until an address is chosen (Ryan,
   // 2026-09-03) — being signed in no longer skips it.
