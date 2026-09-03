@@ -106,11 +106,22 @@ export default function DealDetail() {
     deal.year_built ? `built ${deal.year_built}` : null,
   ].filter(Boolean).join('  ·  ');
 
+  // ── PRICE | ARV | SPREAD (Ryan, 2026-09-03) ────────────────────────────────
+  // Replaces Profit | ARV | Rehab | Price, and must stay in step with the web
+  // deal page (app/src/app/marketplace/_components/DealPageView.tsx) — a buyer
+  // who opens the emailed link on a laptop and the same deal in the app has to
+  // see the same three numbers in the same order.
+  //
+  // Spread = ARV − price. The server sends it as spread_cents (computeSpread in
+  // the web repo's lib/marketplace/profit.ts is the single definition); the
+  // local subtraction is only a fallback for a feed response predating it.
+  const spreadCents = deal.spread_cents ?? (
+    hasVerified && hasPrice ? (deal.arv_cents as number) - (deal.ask_cents as number) : null
+  );
   const metrics = ([
-    hasProfit && { label: 'Profit', value: fmtUsd(deal.profit_cents), color: profitPositive ? colors.lime : colors.danger },
-    hasVerified && { label: 'ARV', value: fmtUsd(deal.arv_cents), color: colors.text },
-    hasVerified && { label: 'Rehab', value: fmtUsd(deal.rehab_cents), color: colors.warn },
     hasPrice && { label: 'Price', value: fmtUsd(deal.ask_cents), color: colors.blue },
+    hasVerified && { label: 'ARV', value: fmtUsd(deal.arv_cents), color: colors.text },
+    spreadCents != null && { label: 'Spread', value: fmtUsd(spreadCents), color: spreadCents > 0 ? colors.lime : colors.warn },
   ].filter(Boolean)) as { label: string; value: string; color: string }[];
 
   return (
@@ -247,7 +258,7 @@ export default function DealDetail() {
                   : 'Sellers list their own controlled deals here — no re-shopped contracts.'}
                 accent={deal.contract_verified ? colors.lime : colors.textDim}
               />
-              <TrustCard title="Everything on one page" body="The profit you see is after the ask — the spread's already in the math. No hidden fees." accent={colors.lime} />
+              <TrustCard title="Everything on one page" body="The spread you see is the verified ARV minus the asking price. Rehab is listed separately so you can run your own numbers." accent={colors.lime} />
             </View>
           )}
 

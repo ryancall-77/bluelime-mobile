@@ -1,5 +1,5 @@
 // A single matched deal in the feed / watchlist — numbers up front (verified
-// ARV, rehab, gross profit) with the photo, per the product spec.
+// ARV, rehab, SPREAD) with the photo, per the product spec.
 
 import React from 'react';
 import { Image } from 'expo-image';
@@ -12,8 +12,15 @@ import type { FeedDeal, ListingCard } from '@/lib/types';
 type CardDeal = Partial<FeedDeal> & Partial<ListingCard> & { id: string };
 
 export function DealCard({ deal, onPress }: { deal: CardDeal; onPress: () => void }) {
-  const profit = deal.profit_cents ?? null;
-  const profitPositive = profit != null && profit > 0;
+  // SPREAD, not profit (Ryan, 2026-09-03) — ARV − asking price, matching the
+  // web marketplace pill. Server sends spread_cents; the subtraction is a
+  // fallback for a cached/older feed response that predates the field.
+  const spread = deal.spread_cents ?? (
+    deal.arv_cents != null && deal.ask_cents != null && deal.ask_cents > 0
+      ? deal.arv_cents - deal.ask_cents
+      : null
+  );
+  const spreadPositive = spread != null && spread > 0;
   return (
     <Pressable style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]} onPress={onPress}>
       <View style={styles.imageWrap}>
@@ -27,10 +34,10 @@ export function DealCard({ deal, onPress }: { deal: CardDeal; onPress: () => voi
         <View style={styles.badgeOnImage}>
           <VerifiedBadge small />
         </View>
-        {profit != null && (
-          <View style={[styles.profitBadge, { backgroundColor: profitPositive ? colors.lime : colors.danger }]}>
-            <Text style={[styles.profitBadgeText, { color: profitPositive ? colors.bg : colors.white }]}>
-              {fmtUsdShort(profit)} profit
+        {spread != null && (
+          <View style={[styles.profitBadge, { backgroundColor: spreadPositive ? colors.lime : colors.danger }]}>
+            <Text style={[styles.profitBadgeText, { color: spreadPositive ? colors.bg : colors.white }]}>
+              {fmtUsdShort(spread)} spread
             </Text>
           </View>
         )}
