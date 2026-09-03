@@ -23,6 +23,18 @@ on:
         description: 'Update message shown in EAS'
         required: false
         default: 'Manual OTA update'
+      channel:
+        description: 'EAS channel to publish to (preview | production)'
+        required: false
+        default: 'preview'
+      runtime_version:
+        description: >-
+          Pin an explicit runtimeVersion instead of the fingerprint policy.
+          Use the runtime of the INSTALLED build (npx eas build:list) when an
+          update must reach a build whose CI-computed fingerprint has drifted.
+          Leave blank for normal fingerprint behaviour.
+        required: false
+        default: ''
 
 concurrency:
   group: eas-update-preview
@@ -76,12 +88,63 @@ jobs:
           # a script-injection vector). Env vars are set by the runner, never parsed.
           INPUT_MSG: ${{ github.event.inputs.message }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}
+          INPUT_CHANNEL: ${{ github.event.inputs.channel }}
+          INPUT_RUNTIME: ${{ github.event.inputs.runtime_version }}
         run: |
           MSG="${INPUT_MSG:-$COMMIT_MSG}"
           # EAS wants a short one-liner — take the subject line and cap the length.
           MSG="$(printf '%s' "$MSG" | head -n 1 | cut -c1-180)"
           if [ -z "$MSG" ]; then MSG="OTA update"; fi
+          CH="${INPUT_CHANNEL:-preview}"
+
+          # ── Optional runtime pin ────────────────────────────────────────────
+          # ⚠️ Injected HERE, at run time, and NEVER committed to app.json.
+          # app.json is a fingerprint input: committing an explicit runtime would
+          # pin every future `eas build` to it. This edit lives only in the
+          # runner's throwaway checkout.
+          #
+          # Why this exists: on 2026-09-03 the live build (build 2, 2026-08-14)
+          # had runtime 4f563724…, while every CI publish computed a DIFFERENT
+          # fingerprint (8e734012…, then 91a75198…). `eas build` fingerprints on
+          # the build machine after prebuild; `eas update` fingerprints in CI, and
+          # the two had silently forked with no tracked config change. Result:
+          # every OTA from 2026-08-14 onward published green and reached nobody.
+          # Pinning to the installed build's runtime is what lets a JS-only change
+          # reach an existing binary without paying for a new build.
+          #
+          # ONLY safe while no native dependency has changed since that build —
+          # check `git diff <build-commit>..HEAD -- package.json package-lock.json`
+          # is empty first, or the bundle will reference native modules the binary
+          # does not have.
+          if [ -n "$INPUT_RUNTIME" ]; then
+            echo "Pinning runtimeVersion to $INPUT_RUNTIME (run-time only)"
+            # Surgical, not a JSON round-trip: a serializer would reformat the
+            # file, and reformatting a fingerprint-input file has broken this
+            # repo's OTA before.
+            python3 - "$INPUT_RUNTIME" <<'PYEOF'
+          import io, re, sys
+          rt = sys.argv[1]
+          p = 'app.json'
+          s = io.open(p, encoding='utf-8', newline='').read()
+          pat = re.compile(r'"runtimeVersion"\s*:\s*\{[^}]*\}')
+          if not pat.search(s):
+              raise SystemExit('runtimeVersion policy block not found in app.json')
+          io.open(p, 'w', encoding='utf-8', newline='').write(
+              pat.sub('"runtimeVersion": "%s"' % rt, s, count=1))
+          print('pinned', rt)
+          PYEOF
+          fi
           # iOS only: --platform=all would also web-export, and Expo Router's
           # web static render evaluates native-only modules (secureStore/supabase)
           # under Node and crashes. This is an iPhone app, so publish iOS.
-          eas update --branch preview --environment preview --platform ios --message "$MSG" --non-interactive
+          #
+          # ⚠️ --branch AND --channel both track $CH. The channel is what the
+          # INSTALLED BINARY listens to (baked in by eas.json's build profile),
+          # and until 2026-09-03 this line was hardcoded to `preview` while the
+          # only live build was built on the `production` channel — so the
+          # production channel had no branch mapped to it at all and every
+          # publish went somewhere nothing was listening. Verify a publish
+          # against `eas build:list` (channel AND runtimeVersion), never against
+          # a previous OTA: CI publishes agree with each other and can all be
+          # wrong together.
+          eas update --branch "$CH" --channel "$CH" --environment "$CH" --platform ios --message "$MSG" --non-interactive
