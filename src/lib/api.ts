@@ -58,6 +58,21 @@ export const getUwCredits = async (): Promise<UwCredits> => {
   };
 };
 
+// ───────────────────────── Phone verification ─────────────────────────
+// POST /api/auth/phone/start → texts a Twilio Verify code to the given number.
+// POST /api/auth/phone/confirm → checks the code; server-side grants the
+// underwriting trial runs on first success (see the route for why: an
+// unverified account gets ZERO trial runs as of 2026-09-07).
+export const startPhoneVerify = (phone: string) =>
+  send<{ ok: true; sent_to: string } | { ok: true; already_verified: true }>(
+    '/api/auth/phone/start', 'POST', { phone },
+  );
+
+export const confirmPhoneVerify = (code: string) =>
+  send<{ ok: true; verified: true; trial_runs_granted: number } | { ok: true; already_verified: true }>(
+    '/api/auth/phone/confirm', 'POST', { code },
+  );
+
 async function send<T>(path: string, method: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method,

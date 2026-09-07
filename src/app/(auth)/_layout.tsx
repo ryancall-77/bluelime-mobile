@@ -6,6 +6,7 @@ export default function AuthLayout() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Screen name="login" />
       <Stack.Screen name="signup" />
+      <Stack.Screen name="verify-phone" />
     </Stack>
   );
 }

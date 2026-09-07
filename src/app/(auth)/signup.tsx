@@ -7,8 +7,7 @@ import { KeyboardLift } from '@/components/KeyboardLift';
 import { useAuth } from '@/lib/auth';
 import { colors, font, radius, space } from '@/lib/theme';
 import { TERMS_URL, PRIVACY_URL } from '@/lib/config';
-import { markNeedsBuyBox } from '@/lib/onboarding';
-import { GATE_COPY, isSupplyReason, type GateReason } from '@/lib/gate';
+import { GATE_COPY, type GateReason } from '@/lib/gate';
 
 // Signup includes the Apple-required EULA / terms gate for UGC apps: the buyer
 // must affirmatively agree before an account can be created.
@@ -44,26 +43,16 @@ export default function Signup() {
     setBusy(true);
     try {
       const { needsConfirm } = await signUp(email, password);
-      // Queue the buy-box prompt for whenever they actually land in the app —
-      // set BEFORE the confirm branch so it survives the email-confirmation
-      // round trip (sign up → confirm in email → come back → log in).
-      //
-      // Buyer-side signups ONLY. A buy-box is markets + price band + min profit —
-      // it is what the marketplace feed matches against, and it means nothing to
-      // someone who signed up from the UNDERWRITE side to get a report emailed to
-      // them. Unconditional, this dropped that user into a buyer's buy-box form
-      // over the marketplace map the first time they opened Deals. A signup with
-      // no reason at all is an organic marketplace signup, so it still queues.
-      if (!isSupplyReason(reason)) markNeedsBuyBox();
-      // Email confirmation off → there is a session already. The root gate no
-      // longer moves a signed-in user off (auth) (that half is gone now that the
-      // group is public), so navigate back to whatever the user was browsing.
+      // Email confirmation off → there is a session already. Route to phone
+      // verification instead of straight into the app (Ryan, 2026-09-07): an
+      // unverified account gets zero free underwriting runs, so this is no
+      // longer optional. verify-phone.tsx owns queuing the buy-box prompt and
+      // the final "back to wherever they were" navigation — this screen's job
+      // ends at having a session.
       if (needsConfirm) {
         setConfirmSent(true);
-      } else if (router.canGoBack()) {
-        router.back();
       } else {
-        router.replace('/(marketplace)');
+        router.replace({ pathname: '/(auth)/verify-phone', params: reason ? { reason } : {} });
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign up failed');
