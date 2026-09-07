@@ -58,6 +58,17 @@ export const getUwCredits = async (): Promise<UwCredits> => {
   };
 };
 
+// POST /api/marketplace/buyer/bootstrap — provisions BOTH buyer_profiles and
+// public.users + org + uw_credit_balances for a fresh auth.users row. The web
+// app calls this (or /api/auth/post-signup) right after signUp(); mobile never
+// did, so a mobile-created account had no public.users row at all — which is
+// why /api/auth/phone/start's UPDATE was a silent no-op affecting zero rows
+// (Ryan, 2026-09-07: "Enter your number first" right after the code arrived).
+// Body is optional; called bare here since the signup screen collects nothing
+// bootstrap needs (display name / phone / buy-box come later).
+export const bootstrapAccount = () =>
+  send<{ ok: true } | Record<string, unknown>>('/api/marketplace/buyer/bootstrap', 'POST', {});
+
 // ───────────────────────── Phone verification ─────────────────────────
 // POST /api/auth/phone/start → texts a Twilio Verify code to the given number.
 // POST /api/auth/phone/confirm → checks the code; server-side grants the

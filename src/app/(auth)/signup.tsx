@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { colors, font, radius, space } from '@/lib/theme';
 import { TERMS_URL, PRIVACY_URL } from '@/lib/config';
 import { GATE_COPY, type GateReason } from '@/lib/gate';
+import { bootstrapAccount } from '@/lib/api';
 
 // Signup includes the Apple-required EULA / terms gate for UGC apps: the buyer
 // must affirmatively agree before an account can be created.
@@ -52,6 +53,18 @@ export default function Signup() {
       if (needsConfirm) {
         setConfirmSent(true);
       } else {
+        // A fresh mobile signup has ONLY an auth.users row at this point — the
+        // web app provisions public.users/org/uw_credit_balances via its
+        // post-signup call, but mobile never did (nothing here needed that
+        // table before). Without it, /api/auth/phone/start's UPDATE on `users`
+        // is a silent no-op (0 rows), and /confirm then sees no phone parked
+        // and refuses with "Enter your number first" — exactly what Ryan hit
+        // 2026-09-07 right after a real code arrived and was entered correctly.
+        // bootstrapAccount() is idempotent and best-effort server-side, so a
+        // failure here must not strand the signup — proceed to verify-phone
+        // either way; if provisioning didn't land, /start will surface that
+        // clearly instead of silently succeeding.
+        await bootstrapAccount().catch(() => {});
         router.replace({ pathname: '/(auth)/verify-phone', params: reason ? { reason } : {} });
       }
     } catch (e) {
