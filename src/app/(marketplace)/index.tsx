@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT, type Region } from 'react-native-maps';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -72,18 +72,33 @@ export default function Search() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // First run after signup: open the buy-box editor over the map. The feed is
-  // buy-box-matched, so without one a new account sees an empty map and has no
-  // idea the gear icon is what fixes it (Ryan, 2026-08-12). Consume-once, so a
-  // user who dismisses it is never nagged again.
+  // First run after signup: nudge toward the buy-box, softly. This used to be
+  // an immediate router.push('/buybox') the instant this screen mounted — Ryan,
+  // 2026-09-07: "after logging in [signing up + verifying], it takes me
+  // immediately to the profile page. I'd rather it take me into the app... a
+  // pop-up after a little bit of time browsing, that allows them to dismiss
+  // it." The forced-push reasoning was also already stale: the 2026-08-28 "show
+  // every deal to everyone regardless of buy-box" decision above means a new
+  // account no longer sees an empty map without one — there is no longer an
+  // urgent reason to interrupt them for it.
+  //
+  // Still consume-once (a user who dismisses it is never nagged again — same
+  // guarantee as before), just shown as a dismissible card after a delay
+  // instead of a forced navigation.
+  const [showBuyBoxNudge, setShowBuyBoxNudge] = useState(false);
+  const nudgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!signedIn) return;
     let cancelled = false;
     consumeNeedsBuyBox().then((needs) => {
-      if (!cancelled && needs) router.push('/buybox');
+      if (cancelled || !needs) return;
+      nudgeTimer.current = setTimeout(() => { if (!cancelled) setShowBuyBoxNudge(true); }, 15000);
     });
-    return () => { cancelled = true; };
-  }, [router, signedIn]);
+    return () => {
+      cancelled = true;
+      if (nudgeTimer.current) clearTimeout(nudgeTimer.current);
+    };
+  }, [signedIn]);
 
   // The buy-box is an account feature, so a guest tapping ⚙︎ or "Set up buy-box"
   // gets the prompt instead of a modal that could not save anything.
@@ -220,6 +235,25 @@ export default function Search() {
           </View>
         </View>
       )}
+
+      {showBuyBoxNudge ? (
+        <View style={styles.nudgeWrap} pointerEvents="box-none">
+          <View style={styles.nudgeCard}>
+            <Pressable onPress={() => setShowBuyBoxNudge(false)} hitSlop={8} style={styles.nudgeClose} accessibilityLabel="Dismiss">
+              <Text style={styles.nudgeCloseText}>✕</Text>
+            </Pressable>
+            <Text style={styles.nudgeText}>
+              Be notified of new deals as soon as they become available in your area — just complete your profile here.
+            </Text>
+            <Button
+              title="Complete profile"
+              variant="accent"
+              onPress={() => { setShowBuyBoxNudge(false); router.push('/buybox'); }}
+              style={{ marginTop: space.sm }}
+            />
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -266,4 +300,15 @@ const styles = StyleSheet.create({
     color: colors.textDim, fontSize: font.small, backgroundColor: colors.surface,
     paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill, overflow: 'hidden',
   },
+  // Sits above the floating map/list toggle (bottom: space.lg) so the two never
+  // overlap — the toggle button is ~44pt tall, this clears it with room to spare.
+  nudgeWrap: { position: 'absolute', left: space.md, right: space.md, bottom: 84, alignItems: 'stretch' },
+  nudgeCard: {
+    backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+    padding: space.lg, paddingRight: space.xl,
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 6,
+  },
+  nudgeClose: { position: 'absolute', top: space.sm, right: space.sm, padding: 4 },
+  nudgeCloseText: { color: colors.textFaint, fontSize: font.body, fontWeight: '700' },
+  nudgeText: { color: colors.text, fontSize: font.small, lineHeight: 20, paddingRight: space.md },
 });

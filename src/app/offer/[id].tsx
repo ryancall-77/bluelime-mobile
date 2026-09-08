@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Screen, Button, Field, Card, ErrorText } from '@/components/ui';
@@ -141,15 +141,36 @@ export default function OfferFlow() {
     }
   };
 
+  // This screen is presented as a native `presentation: 'modal'` (see root
+  // _layout.tsx), and native-stack does NOT draw a back/close control for a
+  // modal on its own — that's normal for a simple confirmation sheet, but this
+  // one is a scrollable form, so the iOS swipe-down-to-dismiss gesture competes
+  // with scrolling the content and is easy to miss entirely (Ryan, 2026-09-07:
+  // "there should be a back button"). headerLeft is set explicitly on every
+  // return path below rather than once, because the early returns (guest /
+  // done / loading) sit BEFORE the main return and each is its own render.
+  const cancelHeader = (
+    <Stack.Screen
+      options={{
+        headerLeft: () => (
+          <Pressable onPress={() => router.back()} hitSlop={12}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </Pressable>
+        ),
+      }}
+    />
+  );
+
   // Every early return sits below every hook — the react compiler is on, and a
   // conditional return above a hook makes it bail silently instead of crashing.
   // Guest first: no form, no file/photo picker (so no media-permission prompt a
   // guest can never use), no offer that has nobody to attach to.
-  if (!signedIn) return <Screen><SignInPrompt title="Make an offer" reason="offer" /></Screen>;
+  if (!signedIn) return <Screen>{cancelHeader}<SignInPrompt title="Make an offer" reason="offer" /></Screen>;
 
   if (done) {
     return (
       <Screen>
+        {cancelHeader}
         <View style={styles.doneWrap}>
           <Text style={styles.doneTitle}>Offer submitted 🎉</Text>
           <Text style={styles.doneBody}>
@@ -165,6 +186,7 @@ export default function OfferFlow() {
   if (loadingContext) {
     return (
       <Screen>
+        {cancelHeader}
         <View style={styles.doneWrap}>
           <ActivityIndicator color={colors.blue} size="large" />
         </View>
@@ -174,6 +196,7 @@ export default function OfferFlow() {
 
   return (
     <Screen>
+      {cancelHeader}
       <KeyboardLift>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Field
@@ -252,6 +275,7 @@ export default function OfferFlow() {
 }
 
 const styles = StyleSheet.create({
+  cancelText: { color: colors.blue, fontSize: font.body, fontWeight: '600' },
   content: { padding: space.lg, paddingBottom: space.xl },
   footer: {
     padding: space.lg, paddingTop: space.sm,
