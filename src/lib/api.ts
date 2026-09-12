@@ -113,9 +113,15 @@ interface SearchResponse {
   // above its separate city/state line.
   items: (FeedDeal & { street?: string | null })[];
 }
+// ⚠️ Asks for PENDING as well as active (Ryan, 2026-09-12: "I want active and
+// pending listings to show in the marketplace"). `status` is a REPEATED param —
+// the server reads it with sp.getAll('status'), so `status=active,pending` in one
+// value silently matches nothing. A pending deal is still under contract with a
+// buyer and is shown as proof of movement, never as buyable: the card carries a
+// PENDING badge and every offer path server-side independently requires 'active'.
 export async function getPublicFeed(): Promise<FeedResponse> {
   const res = await get<SearchResponse>(
-    '/api/marketplace/search?status=active&sort=profit&coords=1&limit=100',
+    '/api/marketplace/search?status=active&status=pending&sort=profit&coords=1&limit=100',
   );
   return { deals: (res.items ?? []).map((it) => ({ ...it, address: it.street || it.address })) };
 }

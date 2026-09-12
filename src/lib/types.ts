@@ -20,6 +20,15 @@ export interface FeedDeal {
   sqft: number | null;
   latitude?: number | null;
   longitude?: number | null;
+  // 'active' | 'pending' | 'sold'. The board now requests pending too, so the
+  // card has to say which it is — an unlabelled pending deal reads as buyable
+  // and the buyer only finds out when the offer is refused. Optional because a
+  // cached response from before this shipped has no such field; treat a missing
+  // value as active, which is what every one of those rows was.
+  listing_state?: string | null;
+  // Bucketed by the server (single_family / condo / townhouse / …). Used by the
+  // on-device property-type filter.
+  property_type?: string | null;
 }
 
 export interface FeedResponse {
@@ -81,7 +90,7 @@ export interface DealDetail extends FeedDeal {
   sale_mode?: string | null;
   offer_deadline?: string | null;
   saved?: boolean;
-  listing_state?: string;
+  listing_state?: string | null;
 }
 
 export interface ReportComp {
@@ -163,7 +172,7 @@ export interface ListingCard {
   city: string | null;
   state: string | null;
   ask_cents: number | null;
-  listing_state?: string;
+  listing_state?: string | null;
   photo: string | null;
   profit_cents: number | null;
   // ARV − asking price. What the card badge and the deal header render in

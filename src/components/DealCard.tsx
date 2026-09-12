@@ -34,6 +34,17 @@ export function DealCard({ deal, onPress }: { deal: CardDeal; onPress: () => voi
         <View style={styles.badgeOnImage}>
           <VerifiedBadge small />
         </View>
+        {/* A pending deal is under contract with a buyer. It stays on the board
+            (Ryan, 2026-09-12) but must never read as buyable — the offer routes
+            refuse anything that is not 'active', so without this badge the only
+            way a buyer learns is a rejected offer. Absent field = active. */}
+        {deal.listing_state && deal.listing_state !== 'active' ? (
+          <View style={styles.stateBadge}>
+            <Text style={styles.stateBadgeText}>
+              {deal.listing_state === 'pending' ? 'PENDING' : String(deal.listing_state).toUpperCase()}
+            </Text>
+          </View>
+        ) : null}
         {spread != null && (
           <View style={[styles.profitBadge, { backgroundColor: spreadPositive ? colors.lime : colors.danger }]}>
             <Text style={[styles.profitBadgeText, { color: spreadPositive ? colors.bg : colors.white }]}>
@@ -80,6 +91,13 @@ const styles = StyleSheet.create({
   imagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   placeholderText: { color: colors.textFaint, fontSize: font.small },
   badgeOnImage: { position: 'absolute', top: space.sm, left: space.sm },
+  // Top-RIGHT so it never collides with the verified badge, and amber rather than
+  // lime — lime is the "this is a good buy" accent and a pending deal is not one.
+  stateBadge: {
+    position: 'absolute', top: space.sm, right: space.sm, borderRadius: radius.pill,
+    backgroundColor: colors.warn, paddingHorizontal: space.md, paddingVertical: 4,
+  },
+  stateBadgeText: { color: colors.bg, fontWeight: '800', fontSize: font.tiny, letterSpacing: 0.5 },
   profitBadge: {
     position: 'absolute', bottom: space.sm, right: space.sm, borderRadius: radius.pill,
     paddingHorizontal: space.md, paddingVertical: 5,
