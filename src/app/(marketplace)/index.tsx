@@ -3,7 +3,7 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View 
 import MapView, { Marker, PROVIDER_DEFAULT, type Region } from 'react-native-maps';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { DealCard } from '@/components/DealCard';
-import { Button, EmptyState, Loading } from '@/components/ui';
+import { Button, EmptyState, Loading, Pill } from '@/components/ui';
 import { getPublicFeed } from '@/lib/api';
 import type { FeedDeal } from '@/lib/types';
 import { fmtUsdShort } from '@/lib/format';
@@ -15,6 +15,21 @@ import { promptSignUp, requireAuth } from '@/lib/gate';
 
 // Continental-US fallback when no deal has coordinates yet.
 const US_REGION: Region = { latitude: 39.5, longitude: -98.35, latitudeDelta: 32, longitudeDelta: 40 };
+
+// Spread = ARV − asking price, the same number the card pill shows. Coarse steps
+// on purpose: this is a phone, not a search console.
+const SPREAD_STEPS: Array<{ label: string; cents: number }> = [
+  { label: 'Any', cents: 0 },
+  { label: '$25k+', cents: 25_000_00 },
+  { label: '$50k+', cents: 50_000_00 },
+  { label: '$100k+', cents: 100_000_00 },
+];
+
+// single_family → "Single family". The server sends snake_case buckets.
+function prettyType(t: string): string {
+  const s = t.replace(/_/g, ' ').trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 // Fit a region around the deals that have coordinates.
 function regionFor(deals: FeedDeal[]): Region {
@@ -42,6 +57,28 @@ export default function Search() {
   const [refreshing, setRefreshing] = useState(false);
   const [view, setView] = useState<'map' | 'list'>('map');
   const [query, setQuery] = useState('');
+
+  // ── Filters (Ryan, 2026-09-12) ────────────────────────────────────────────
+  // Applied ON DEVICE, over the ≤100 deals the board already holds, rather than
+  // as extra query params. The board is small, the whole set is already in
+  // memory for the map pins, and doing it here means the filter row cannot get
+  // out of step with a server deploy. `status` is the one exception — pending
+  // has to be REQUESTED or it is never fetched at all.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [includePending, setIncludePending] = useState(true);   // pending shows by DEFAULT
+  const [minSpread, setMinSpread] = useState(0);
+  const [propertyType, setPropertyType] = useState<string | null>(null);
+
+  const resetFilters = useCallback(() => {
+    setIncludePending(true);
+    setMinSpread(0);
+    setPropertyType(null);
+  }, []);
+
+  // Counts only DEPARTURES from the default, so the badge means "you have
+  // narrowed something", not "filters exist".
+  const activeFilterCount =
+    (includePending ? 0 : 1) + (minSpread > 0 ? 1 : 0) + (propertyType ? 1 : 0);
 
   // ⚠️ ALWAYS THE PUBLIC BOARD. EVERY deal, to everyone, signed in or not.
   // (Ryan, 2026-08-28: "It's essential that all deals show to all users all the
@@ -117,12 +154,33 @@ export default function Search() {
     promptSignUp(signedIn, reason);
   }, [signedIn]);
 
+  // Property types present in the CURRENT result set — offering a type nothing
+  // is listed under would just produce a guaranteed-empty board.
+  const typeOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of deals ?? []) if (d.property_type) set.add(d.property_type);
+    return [...set].sort();
+  }, [deals]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q || !deals) return deals ?? [];
-    return deals.filter((d) =>
-      [d.address, d.city, d.state].filter(Boolean).join(' ').toLowerCase().includes(q));
-  }, [deals, query]);
+    return (deals ?? []).filter((d) => {
+      if (q && !([d.address, d.city, d.state].filter(Boolean).join(' ').toLowerCase().includes(q))) return false;
+      // A listing with no state recorded predates the field and was active.
+      const state = d.listing_state ?? 'active';
+      if (!includePending && state !== 'active') return false;
+      if (minSpread > 0) {
+        const spread = d.spread_cents ?? (
+          d.arv_cents != null && d.ask_cents != null && d.ask_cents > 0 ? d.arv_cents - d.ask_cents : null
+        );
+        // Unknown spread fails a spread floor — asserting it clears a bar we
+        // cannot compute would be the permissive-default trap.
+        if (spread == null || spread < minSpread) return false;
+      }
+      if (propertyType && d.property_type !== propertyType) return false;
+      return true;
+    });
+  }, [deals, query, includePending, minSpread, propertyType]);
 
   const pins = useMemo(
     () => filtered.filter((d) => d.latitude != null && d.longitude != null) as Array<FeedDeal & { latitude: number; longitude: number }>,
@@ -151,10 +209,70 @@ export default function Search() {
           />
           {query ? <Pressable onPress={() => setQuery('')} hitSlop={8}><Text style={styles.clear}>✕</Text></Pressable> : null}
         </View>
-        <Pressable onPress={openBuyBox} style={styles.filterBtn} accessibilityLabel="Filters">
-          <Text style={styles.filterIcon}>⚙︎</Text>
+        {/* Was a ⚙︎ that opened the buy-box editor — redundant (Ryan,
+            2026-09-12): Account already has "Set up / Edit buy-box" in two
+            places, and a gear beside a search field reads as app settings, not
+            as a way to shape results. It is a real filter control now. */}
+        <Pressable
+          onPress={() => setFiltersOpen((v) => !v)}
+          style={[styles.filterBtn, (filtersOpen || activeFilterCount > 0) && styles.filterBtnOn]}
+          accessibilityLabel="Filters"
+          accessibilityState={{ expanded: filtersOpen }}
+        >
+          <Text style={[styles.filterIcon, (filtersOpen || activeFilterCount > 0) && styles.filterIconOn]}>
+            ⇅{activeFilterCount > 0 ? ` ${activeFilterCount}` : ''}
+          </Text>
         </Pressable>
       </View>
+
+      {filtersOpen ? (
+        <View style={styles.filterPanel}>
+          <Text style={styles.filterLabel}>Status</Text>
+          <View style={styles.filterRow}>
+            {/* Pending is ON by default — the point of showing pending deals is
+                that a buyer sees the market moving. "Active only" is the opt-out. */}
+            <Pill label="Active + pending" active={includePending} onPress={() => setIncludePending(true)} />
+            <Pill label="Active only" active={!includePending} onPress={() => setIncludePending(false)} />
+          </View>
+
+          <Text style={styles.filterLabel}>Minimum spread</Text>
+          <View style={styles.filterRow}>
+            {SPREAD_STEPS.map((s) => (
+              <Pill
+                key={s.label}
+                label={s.label}
+                active={minSpread === s.cents}
+                onPress={() => setMinSpread(s.cents)}
+              />
+            ))}
+          </View>
+
+          {/* Only offered when the loaded deals actually span more than one type —
+              a single-choice filter over one option is noise. */}
+          {typeOptions.length > 1 ? (
+            <>
+              <Text style={styles.filterLabel}>Property type</Text>
+              <View style={styles.filterRow}>
+                <Pill label="Any" active={propertyType === null} onPress={() => setPropertyType(null)} />
+                {typeOptions.map((t) => (
+                  <Pill
+                    key={t}
+                    label={prettyType(t)}
+                    active={propertyType === t}
+                    onPress={() => setPropertyType(t)}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
+
+          {activeFilterCount > 0 ? (
+            <Pressable onPress={resetFilters} hitSlop={8} style={styles.resetWrap}>
+              <Text style={styles.reset}>Clear filters</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -274,6 +392,16 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
   },
   filterIcon: { fontSize: 18, color: colors.text },
+  filterBtnOn: { backgroundColor: colors.blue, borderColor: colors.blue },
+  filterIconOn: { color: colors.white, fontWeight: '800' },
+  filterPanel: {
+    paddingHorizontal: space.md, paddingBottom: space.sm, gap: space.xs,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  filterLabel: { color: colors.textDim, fontSize: font.tiny, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: space.sm },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  resetWrap: { alignSelf: 'flex-start', marginTop: space.sm },
+  reset: { color: colors.blue, fontSize: font.small, fontWeight: '700' },
   error: { color: colors.danger, fontSize: font.small, paddingHorizontal: space.md, paddingBottom: space.sm },
   mapWrap: { flex: 1, overflow: 'hidden' },
   listWrap: { flex: 1 },
