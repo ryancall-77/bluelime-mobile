@@ -7,8 +7,9 @@ name: EAS Submit (TestFlight)
 # eas-build.yml already works around. Without this, every TestFlight push had to
 # be done by hand. Manual dispatch only; nothing here fires on push.
 #
-# Uses the ascAppId + ASC API key already configured in eas.json's
-# submit.production.ios, so no prompts. TestFlight internal testing needs no
+# ascAppId and the ASC API key are INJECTED into eas.json at run time (see the
+# credential step) — they are deliberately absent from the committed eas.json,
+# which is expo-updates fingerprint input. TestFlight internal testing needs no
 # App Store review — do NOT click "Add for Review" on the version page, that's
 # a public release.
 
@@ -63,10 +64,20 @@ jobs:
           # ascAppId is injected here, NOT stored in eas.json: eas.json feeds the
           # expo-updates fingerprint, so adding a field there changes the runtime
           # version and silently orphans every installed app from OTA updates.
+          #
+          # ⚠️ 6801364590 = com.realtyzoom, the LIVE app. It is NOT 6790447988,
+          # which is ai.bluelime.deals — the retired bundle whose App Store record
+          # is literally named "RealtyZoom Legacy DNU". Both display as
+          # "RealtyZoom" once installed, which already cost Ryan an evening on
+          # 2026-08-28. This file was written 2026-08-01, two weeks BEFORE the
+          # 2026-08-14 rebrand moved the bundle, and still carried the old id —
+          # it would have submitted a com.realtyzoom binary to the dead record.
+          # Corrected 2026-09-16. Check app.json's bundleIdentifier before
+          # changing this line.
           node -e '
             const fs=require("fs"), p="eas.json";
             const j=JSON.parse(fs.readFileSync(p,"utf8"));
-            j.submit.production.ios.ascAppId="6790447988";
+            j.submit.production.ios.ascAppId="6801364590";
             fs.writeFileSync(p,JSON.stringify(j,null,2));
           '
           if [ -n "$ASC_KEY_P8" ]; then
