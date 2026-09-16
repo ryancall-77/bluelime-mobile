@@ -57,6 +57,13 @@ jobs:
       #   1. ASC_API_KEY_P8 repo secret -> materialise it and repoint eas.json
       #   2. no secret -> STRIP ascApiKeyPath so EAS falls back to the App Store
       #      Connect API key stored in Expo's own credential service
+      # ⚠️ eas.json is stored WITH a UTF-8 BOM, and JSON.parse rejects it
+      # ("Unexpected token '﻿'"). That killed the first real run of this
+      # workflow, 2026-09-16. Every read here strips the BOM.
+      # Do NOT "fix" it by rewriting eas.json without the BOM: the file is
+      # expo-updates fingerprint input, so changing a single byte changes the
+      # runtime version and orphans every installed build from OTA updates.
+      # The file stays exactly as committed; only this runner-side parse adapts.
       - name: Resolve App Store Connect credentials
         env:
           ASC_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
@@ -76,7 +83,7 @@ jobs:
           # changing this line.
           node -e '
             const fs=require("fs"), p="eas.json";
-            const j=JSON.parse(fs.readFileSync(p,"utf8"));
+            const j=JSON.parse(fs.readFileSync(p,"utf8").replace(/^﻿/,""));
             j.submit.production.ios.ascAppId="6801364590";
             fs.writeFileSync(p,JSON.stringify(j,null,2));
           '
@@ -85,7 +92,7 @@ jobs:
             printf '%s' "$ASC_KEY_P8" > "$HOME/asc/AuthKey.p8"
             node -e '
               const fs=require("fs"), p="eas.json";
-              const j=JSON.parse(fs.readFileSync(p,"utf8"));
+              const j=JSON.parse(fs.readFileSync(p,"utf8").replace(/^﻿/,""));
               j.submit.production.ios.ascApiKeyPath=process.env.HOME+"/asc/AuthKey.p8";
               fs.writeFileSync(p,JSON.stringify(j,null,2));
             '
@@ -93,7 +100,7 @@ jobs:
           else
             node -e '
               const fs=require("fs"), p="eas.json";
-              const j=JSON.parse(fs.readFileSync(p,"utf8"));
+              const j=JSON.parse(fs.readFileSync(p,"utf8").replace(/^﻿/,""));
               // EAS requires ascApiKeyPath + ascApiKeyId + ascApiKeyIssuerId
               // together or not at all — deleting only the path leaves an
               // invalid partial config and it refuses to run.
